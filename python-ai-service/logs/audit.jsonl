@@ -1,0 +1,2 @@
+{"timestamp": "2026-06-09T07:26:24.733487+00:00", "event": "registration", "student_id": "2021CS001", "success": true, "reason": ""}
+{"timestamp": "2026-06-09T07:28:47.730428+00:00", "event": "identification", "image_filename": "ZC.jpeg", "faces_detected": 1, "requested_by": "unknown", "results_summary": [{"face_index": 0, "detection_confidence": 0.8265, "best_match": {"student_id": "2021CS001", "student_name": "Zen Col", "similarity_score": 1.0, "confidence_label": "High"}}]}
