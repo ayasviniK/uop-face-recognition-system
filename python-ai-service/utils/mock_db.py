@@ -2,25 +2,27 @@
 Mock Database Service
 ---------------------
 Simulates what PostgreSQL will do in production.
-Stores student records + embeddings in a local JSON file.
+Stores staff records + embeddings in a local JSON file.
 
-When the real backend is ready, this entire file gets replaced by
-HTTP calls to Spring Boot. Nothing else in the codebase changes.
+Each staff member stores multiple embeddings (one per augmentation).
+During matching, all embeddings are passed to the matcher which
+picks the best score across all of them.
 
-Data structure stored in data/mock_db.json:
+Data structure:
 {
-    "students": {
+    "staff": {
         "2021CS001": {
-            "student_id": "2021CS001",
-            "full_name": "Kasun Perera",
+            "staff_id": "2021CS001",
+            "full_name": "Zen Col",
             "department": "Computer Science",
-            "year": 2,
-            "email": "kasun@sci.pdn.ac.lk",
-            "embedding": [0.023, -0.114, ...],   # 512 floats
+            "image": "zen-col.jpg",
+            "embeddings": [
+                {"augmentation": "original", "embedding": [...]},
+                {"augmentation": "flipped", "embedding": [...]}
+            ],
             "registered_at": "2026-06-03T10:00:00",
             "photo_updated_at": "2026-06-03T10:00:00"
-        },
-        ...
+        }
     }
 }
 """
@@ -33,107 +35,94 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "mock_db.json")
 
 
 def _load() -> dict:
-    """Load the JSON file. Return empty structure if it doesn't exist yet."""
     if not os.path.exists(DB_PATH):
-        return {"students": {}}
+        return {"staff": {}}
     with open(DB_PATH, "r") as f:
-        return json.load(f)
+        data = json.load(f)
+    if "staff" not in data and "students" in data:
+        data["staff"] = data.pop("students")
+    return data
 
 
 def _save(data: dict) -> None:
-    """Write the updated data back to the JSON file."""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     with open(DB_PATH, "w") as f:
         json.dump(data, f, indent=2)
 
 
 def register_student(
-    student_id: str,
+    staff_id: str,
     full_name: str,
     department: str,
-    year: int,
-    email: str,
-    embedding: list[float],
+    image: str | None,
+    embeddings: list[dict],
 ) -> dict:
-    """
-    Save a new student with their face embedding.
-    If the student already exists, update their embedding and photo timestamp.
-
-    Returns the saved student record.
-    """
+    """Save a staff record with augmented embeddings."""
     db = _load()
     now = datetime.now(timezone.utc).isoformat()
+    existing = db["staff"].get(staff_id)
 
-    existing = db["students"].get(student_id)
-
-    db["students"][student_id] = {
-        "student_id": student_id,
+    db["staff"][staff_id] = {
+        "staff_id": staff_id,
         "full_name": full_name,
         "department": department,
-        "year": year,
-        "email": email,
-        "embedding": embedding,
+        "image": image,
+        "embeddings": embeddings,
         "registered_at": existing["registered_at"] if existing else now,
         "photo_updated_at": now,
     }
 
     _save(db)
-    return db["students"][student_id]
+    return db["staff"][staff_id]
 
 
 def get_all_embeddings() -> list[dict]:
-    """
-    Return all students with their embeddings.
-    This is what gets passed to the matcher.
-
-    In production, Spring Boot will call its own DB and pass
-    this same structure to Flask via the /identify request body.
-    """
+    """Return all staff embeddings as flattened candidate entries."""
     db = _load()
     result = []
-    for student in db["students"].values():
-        result.append({
-            "student_id": student["student_id"],
-            "student_name": student["full_name"],
-            "department": student["department"],
-            "embedding": student["embedding"],
-        })
+    for staff in db["staff"].values():
+        for emb_entry in staff.get("embeddings", []):
+            result.append({
+                "staff_id": staff["staff_id"],
+                "staff_name": staff["full_name"],
+                "department": staff["department"],
+                "image": staff.get("image"),
+                "augmentation": emb_entry["augmentation"],
+                "embedding": emb_entry["embedding"],
+            })
     return result
 
 
-def get_student(student_id: str) -> dict | None:
-    """Look up a single student by ID."""
+def get_student(staff_id: str) -> dict | None:
     db = _load()
-    return db["students"].get(student_id)
+    return db["staff"].get(staff_id)
 
 
 def get_all_students() -> list[dict]:
-    """Return all students without embeddings (for listing/admin UI)."""
     db = _load()
     result = []
-    for student in db["students"].values():
+    for staff in db["staff"].values():
         result.append({
-            "student_id": student["student_id"],
-            "full_name": student["full_name"],
-            "department": student["department"],
-            "year": student["year"],
-            "email": student["email"],
-            "registered_at": student["registered_at"],
-            "photo_updated_at": student["photo_updated_at"],
+            "staff_id": staff["staff_id"],
+            "full_name": staff["full_name"],
+            "department": staff["department"],
+            "image": staff.get("image"),
+            "embeddings_count": len(staff.get("embeddings", [])),
+            "registered_at": staff["registered_at"],
+            "photo_updated_at": staff["photo_updated_at"],
         })
     return result
 
 
-def delete_student(student_id: str) -> bool:
-    """Remove a student from the DB. Returns True if found and deleted."""
+def delete_student(staff_id: str) -> bool:
     db = _load()
-    if student_id not in db["students"]:
+    if staff_id not in db["staff"]:
         return False
-    del db["students"][student_id]
+    del db["staff"][staff_id]
     _save(db)
     return True
 
 
 def student_count() -> int:
     db = _load()
-    return len(db["students"])
+    return len(db["staff"])

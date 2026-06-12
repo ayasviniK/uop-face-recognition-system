@@ -2,15 +2,15 @@
 UoP Face Recognition - Flask AI Service
 ----------------------------------------
 Endpoints:
-  GET  /health              - Service health check
-  POST /upload              - Image validation + diagnostics
-  POST /register            - Register a student's face
-  POST /identify            - Identify face(s) in an image
-  GET  /students            - List all registered students
-  GET  /students/<id>       - Get a single student
-  DELETE /students/<id>     - Remove a student
-  GET  /logs                - View recent audit logs
-  GET  /stats               - System statistics
+  GET    /health              - Service health check
+  POST   /upload              - Image validation + diagnostics
+  POST   /register            - Register a student's face
+  POST   /identify            - Identify face(s) in an image
+  GET    /students            - List all registered students
+  GET    /students/<id>       - Get a single student
+  DELETE /students/<id>       - Remove a student
+  GET    /logs                - View recent audit logs
+  GET    /stats               - System statistics
 """
 
 from flask import Flask, request, jsonify
@@ -19,8 +19,9 @@ import numpy as np
 import traceback
 
 from utils.embedder import get_embedding_from_image
+from utils.augmentor import generate_augmented_embeddings
 from utils.matcher import find_top_matches
-from utils.preprocessor import preprocess, get_image_info
+from utils.preprocessor import preprocess, get_image_info, check_image_quality
 from utils.mock_db import (
     register_student,
     get_all_embeddings,
@@ -39,10 +40,6 @@ app = Flask(__name__)
 # ---------------------------------------------------------------------------
 
 def decode_image(file_storage):
-    """
-    Convert a Flask FileStorage object into an OpenCV image.
-    Returns (img, error_response) — one of them will be None.
-    """
     image_bytes = np.frombuffer(file_storage.read(), np.uint8)
     img = cv2.imdecode(image_bytes, cv2.IMREAD_COLOR)
     if img is None:
@@ -64,15 +61,11 @@ def health():
 
 
 # ---------------------------------------------------------------------------
-# Upload — now with diagnostics
+# Upload — image diagnostics
 # ---------------------------------------------------------------------------
 
 @app.route("/upload", methods=["POST"])
 def upload_image():
-    """
-    Validates an image and returns diagnostic info.
-    Useful for admins to check if a photo is good quality before registering.
-    """
     if "image" not in request.files:
         return jsonify({"error": "No image uploaded"}), 400
 
@@ -81,9 +74,6 @@ def upload_image():
         return err
 
     info = get_image_info(img)
-
-    # Run quality check but don't reject — just report
-    from utils.preprocessor import check_image_quality
     quality_ok, quality_reason = check_image_quality(img)
 
     return jsonify({
@@ -97,23 +87,16 @@ def upload_image():
 
 
 # ---------------------------------------------------------------------------
-# Register a student
+# Register
 # ---------------------------------------------------------------------------
 
 @app.route("/register", methods=["POST"])
 def register():
     """
-    Register a student's face into the system.
-
-    Form fields required:
-      - image       : passport photo (file)
-      - student_id  : e.g. "2021CS001"
-      - full_name   : e.g. "Kasun Perera"
-      - department  : e.g. "Computer Science"
-      - year        : e.g. "2"
-      - email       : e.g. "kasun@sci.pdn.ac.lk"
+    Register a staff member with augmented embeddings.
+    Generates 6 embedding variants from the single passport photo.
     """
-    required_fields = ["student_id", "full_name", "department", "year", "email"]
+    required_fields = ["staff_id", "full_name", "department"]
     for field in required_fields:
         if field not in request.form:
             return jsonify({"error": f"Missing required field: {field}"}), 400
@@ -121,55 +104,59 @@ def register():
     if "image" not in request.files:
         return jsonify({"error": "No image uploaded"}), 400
 
-    student_id = request.form["student_id"].strip()
+    staff_id = request.form["staff_id"].strip()
     full_name  = request.form["full_name"].strip()
     department = request.form["department"].strip()
-    year       = int(request.form["year"])
-    email      = request.form["email"].strip()
+    image_name = request.files["image"].filename or None
 
-    # Decode
     img, err = decode_image(request.files["image"])
     if err:
-        log_registration(student_id, success=False, reason="Image decode failed")
+        log_registration(staff_id, success=False, reason="Image decode failed")
         return err
 
-    # Preprocess — passport photos especially benefit from this
+    # Preprocess
     processed, reason = preprocess(img)
     if processed is None:
-        log_registration(student_id, success=False, reason=f"Quality check failed: {reason}")
+        log_registration(staff_id, success=False, reason=f"Quality check: {reason}")
         return jsonify({"error": f"Photo quality issue: {reason}"}), 422
 
-    # Detect + embed
+    # Quick check: make sure there's exactly one face before augmenting
     faces = get_embedding_from_image(processed)
-
     if not faces:
-        log_registration(student_id, success=False, reason="No face detected")
+        log_registration(staff_id, success=False, reason="No face detected")
         return jsonify({
-            "error": "No face detected in the image. Please upload a clear, front-facing photo."
+            "error": "No face detected. Please upload a clear, front-facing photo."
         }), 422
 
     if len(faces) > 1:
-        log_registration(student_id, success=False, reason=f"{len(faces)} faces detected")
+        log_registration(staff_id, success=False, reason=f"{len(faces)} faces detected")
         return jsonify({
-            "error": f"{len(faces)} faces detected. Registration requires a photo with exactly one person."
+            "error": f"{len(faces)} faces detected. Please upload a photo with exactly one person."
         }), 422
 
-    # Save
-    embedding = faces[0]["embedding"].tolist()
+    # Generate augmented embeddings from the single photo
+    embeddings = generate_augmented_embeddings(processed, get_embedding_from_image)
+
+    if not embeddings:
+        log_registration(staff_id, success=False, reason="Augmentation failed")
+        return jsonify({"error": "Could not generate embeddings. Please try a different photo."}), 422
+
+    # Save to DB
     register_student(
-        student_id=student_id,
+        staff_id=staff_id,
         full_name=full_name,
         department=department,
-        year=year,
-        email=email,
-        embedding=embedding,
+        image=image_name,
+        embeddings=embeddings,
     )
 
-    log_registration(student_id, success=True)
+    log_registration(staff_id, success=True)
 
     return jsonify({
-        "message": f"Student {full_name} registered successfully.",
-        "student_id": student_id,
+        "message": f"Staff member {full_name} registered successfully.",
+        "staff_id": staff_id,
+        "embeddings_generated": len(embeddings),
+        "augmentations": [e["augmentation"] for e in embeddings],
         "detection_confidence": faces[0]["confidence"],
     }), 201
 
@@ -180,13 +167,6 @@ def register():
 
 @app.route("/identify", methods=["POST"])
 def identify():
-    """
-    Identify face(s) in an uploaded image.
-
-    Form fields:
-      - image        : image to identify (file)
-      - requested_by : optional, for audit log
-    """
     if "image" not in request.files:
         return jsonify({"error": "No image uploaded"}), 400
 
@@ -198,12 +178,10 @@ def identify():
     if err:
         return err
 
-    # Preprocess — important for real-world photos (uneven lighting, etc.)
     processed, reason = preprocess(img, skip_quality_check=False)
     if processed is None:
         return jsonify({"error": f"Photo quality issue: {reason}"}), 422
 
-    # Detect all faces + generate embeddings
     detected_faces = get_embedding_from_image(processed)
 
     if not detected_faces:
@@ -214,17 +192,15 @@ def identify():
             "message": "No faces found in the image.",
         })
 
-    # Fetch all registered students
     candidates = get_all_embeddings()
 
     if not candidates:
         return jsonify({
             "faces_detected": len(detected_faces),
             "results": [],
-            "message": "No students registered in the system yet.",
+            "message": "No staff registered yet.",
         })
 
-    # Match each face
     results = []
     for i, face in enumerate(detected_faces):
         top_matches = find_top_matches(face["embedding"], candidates, top_k=5)
@@ -250,50 +226,43 @@ def identify():
 @app.route("/students", methods=["GET"])
 def list_students():
     students = get_all_students()
-    return jsonify({
-        "total": len(students),
-        "students": students,
-    })
+    return jsonify({"total": len(students), "students": students})
 
 
 @app.route("/students/<student_id>", methods=["GET"])
 def get_student_by_id(student_id):
-    student = get_student(student_id)
-    if not student:
-        return jsonify({"error": f"Student {student_id} not found"}), 404
-    student_safe = {k: v for k, v in student.items() if k != "embedding"}
-    return jsonify(student_safe)
+    staff = get_student(student_id)
+    if not staff:
+        return jsonify({"error": f"Staff member {student_id} not found"}), 404
+    staff_safe = {k: v for k, v in staff.items() if k != "embeddings"}
+    return jsonify(staff_safe)
 
 
 @app.route("/students/<student_id>", methods=["DELETE"])
 def remove_student(student_id):
-    success = delete_student(student_id)
-    if not success:
-        return jsonify({"error": f"Student {student_id} not found"}), 404
-    return jsonify({"message": f"Student {student_id} removed successfully."})
+    if not delete_student(student_id):
+        return jsonify({"error": f"Staff member {student_id} not found"}), 404
+    return jsonify({"message": f"Staff member {student_id} removed successfully."})
 
 
 # ---------------------------------------------------------------------------
-# Admin / monitoring
+# Admin
 # ---------------------------------------------------------------------------
 
 @app.route("/logs", methods=["GET"])
 def audit_logs():
     limit = int(request.args.get("limit", 50))
     logs  = get_recent_logs(limit=limit)
-    return jsonify({
-        "total_returned": len(logs),
-        "logs": logs,
-    })
+    return jsonify({"total_returned": len(logs), "logs": logs})
 
 
 @app.route("/stats", methods=["GET"])
 def stats():
     logs = get_recent_logs(limit=1000)
     return jsonify({
-        "students_registered":    student_count(),
-        "total_identifications":  sum(1 for l in logs if l["event"] == "identification"),
-        "total_registrations":    sum(1 for l in logs if l["event"] == "registration"),
+        "students_registered":   student_count(),
+        "total_identifications": sum(1 for l in logs if l["event"] == "identification"),
+        "total_registrations":   sum(1 for l in logs if l["event"] == "registration"),
     })
 
 

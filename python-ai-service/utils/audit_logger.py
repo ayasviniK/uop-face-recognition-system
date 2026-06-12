@@ -59,14 +59,14 @@ def log_identification(
         f.write(json.dumps(entry) + "\n")
 
 
-def log_registration(student_id: str, success: bool, reason: str = "") -> None:
-    """Log a student registration attempt."""
+def log_registration(staff_id: str, success: bool, reason: str = "") -> None:
+    """Log a staff registration attempt."""
     os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
 
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "event": "registration",
-        "student_id": student_id,
+        "staff_id": staff_id,
         "success": success,
         "reason": reason,
     }
