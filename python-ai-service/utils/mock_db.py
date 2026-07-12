@@ -2,29 +2,11 @@
 Mock Database Service
 ---------------------
 Simulates what PostgreSQL will do in production.
-Stores staff records + embeddings in a local JSON file.
+Stores student/staff records + embeddings in a local JSON file.
 
-Each staff member stores multiple embeddings (one per augmentation).
+Each person stores multiple embeddings (one per augmentation).
 During matching, all embeddings are passed to the matcher which
 picks the best score across all of them.
-
-Data structure:
-{
-    "staff": {
-        "2021CS001": {
-            "staff_id": "2021CS001",
-            "full_name": "Zen Col",
-            "department": "Computer Science",
-            "image": "zen-col.jpg",
-            "embeddings": [
-                {"augmentation": "original", "embedding": [...]},
-                {"augmentation": "flipped", "embedding": [...]}
-            ],
-            "registered_at": "2026-06-03T10:00:00",
-            "photo_updated_at": "2026-06-03T10:00:00"
-        }
-    }
-}
 """
 
 import json
@@ -39,8 +21,11 @@ def _load() -> dict:
         return {"staff": {}}
     with open(DB_PATH, "r") as f:
         data = json.load(f)
+    # Handle both "staff" and legacy "students" key
     if "staff" not in data and "students" in data:
         data["staff"] = data.pop("students")
+    elif "staff" not in data:
+        data["staff"] = {}
     return data
 
 
@@ -51,74 +36,85 @@ def _save(data: dict) -> None:
 
 
 def register_student(
-    staff_id: str,
+    student_id: str,
     full_name: str,
     department: str,
-    image: str | None,
+    year: int,
+    email: str,
     embeddings: list[dict],
+    image: str | None = None,
 ) -> dict:
-    """Save a staff record with augmented embeddings."""
-    db = _load()
+    """
+    Save a student/staff record with augmented embeddings.
+    If the person already exists, updates their embeddings and photo timestamp.
+    """
+    db  = _load()
     now = datetime.now(timezone.utc).isoformat()
-    existing = db["staff"].get(staff_id)
+    existing = db["staff"].get(student_id)
 
-    db["staff"][staff_id] = {
-        "staff_id": staff_id,
-        "full_name": full_name,
-        "department": department,
-        "image": image,
-        "embeddings": embeddings,
-        "registered_at": existing["registered_at"] if existing else now,
+    db["staff"][student_id] = {
+        "staff_id":         student_id,
+        "full_name":        full_name,
+        "department":       department,
+        "year":             year,
+        "email":            email,
+        "image":            image,
+        "embeddings":       embeddings,
+        "registered_at":    existing["registered_at"] if existing else now,
         "photo_updated_at": now,
     }
 
     _save(db)
-    return db["staff"][staff_id]
+    return db["staff"][student_id]
 
 
 def get_all_embeddings() -> list[dict]:
-    """Return all staff embeddings as flattened candidate entries."""
+    """
+    Return all records with embeddings expanded — one entry per augmentation.
+    The matcher compares against all of them and picks the best score per person.
+    """
     db = _load()
     result = []
-    for staff in db["staff"].values():
-        for emb_entry in staff.get("embeddings", []):
+    for person in db["staff"].values():
+        for emb_entry in person.get("embeddings", []):
             result.append({
-                "staff_id": staff["staff_id"],
-                "staff_name": staff["full_name"],
-                "department": staff["department"],
-                "image": staff.get("image"),
+                "student_id":   person["staff_id"],
+                "student_name": person["full_name"],
+                "department":   person["department"],
                 "augmentation": emb_entry["augmentation"],
-                "embedding": emb_entry["embedding"],
+                "embedding":    emb_entry["embedding"],
             })
     return result
 
 
-def get_student(staff_id: str) -> dict | None:
+def get_student(student_id: str) -> dict | None:
     db = _load()
-    return db["staff"].get(staff_id)
+    return db["staff"].get(student_id)
 
 
 def get_all_students() -> list[dict]:
     db = _load()
     result = []
-    for staff in db["staff"].values():
+    for person in db["staff"].values():
         result.append({
-            "staff_id": staff["staff_id"],
-            "full_name": staff["full_name"],
-            "department": staff["department"],
-            "image": staff.get("image"),
-            "embeddings_count": len(staff.get("embeddings", [])),
-            "registered_at": staff["registered_at"],
-            "photo_updated_at": staff["photo_updated_at"],
+            "student_id":       person["staff_id"],
+            "full_name":        person["full_name"],
+            "department":       person["department"],
+            "year":             person.get("year"),
+            "email":            person.get("email"),
+            "image":            person.get("image"),
+            "embeddings_count": len(person.get("embeddings", [])),
+            "registered_at":    person["registered_at"],
+            "photo_updated_at": person["photo_updated_at"],
         })
     return result
 
 
-def delete_student(staff_id: str) -> bool:
+def delete_student(student_id: str) -> bool:
     db = _load()
-    if staff_id not in db["staff"]:
+    if student_id not in db["staff"]:
         return False
-    del db["staff"][staff_id]
+    del db["staff"][student_id]
     _save(db)
     return True
 

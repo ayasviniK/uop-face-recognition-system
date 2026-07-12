@@ -17,8 +17,11 @@ from flask import Flask, request, jsonify
 import cv2
 import numpy as np
 import traceback
+import os
+import tempfile
 
 from utils.embedder import get_embedding_from_image
+from utils.video_processor import process_video, format_timestamp
 from utils.augmentor import generate_augmented_embeddings
 from utils.matcher import find_top_matches
 from utils.preprocessor import preprocess, get_image_info, check_image_quality
@@ -93,10 +96,10 @@ def upload_image():
 @app.route("/register", methods=["POST"])
 def register():
     """
-    Register a staff member with augmented embeddings.
+    Register a student with augmented embeddings.
     Generates 6 embedding variants from the single passport photo.
     """
-    required_fields = ["staff_id", "full_name", "department"]
+    required_fields = ["student_id", "full_name", "department", "year", "email"]
     for field in required_fields:
         if field not in request.form:
             return jsonify({"error": f"Missing required field: {field}"}), 400
@@ -104,32 +107,33 @@ def register():
     if "image" not in request.files:
         return jsonify({"error": "No image uploaded"}), 400
 
-    staff_id = request.form["staff_id"].strip()
+    student_id = request.form["student_id"].strip()
     full_name  = request.form["full_name"].strip()
     department = request.form["department"].strip()
-    image_name = request.files["image"].filename or None
+    year       = int(request.form["year"])
+    email      = request.form["email"].strip()
 
     img, err = decode_image(request.files["image"])
     if err:
-        log_registration(staff_id, success=False, reason="Image decode failed")
+        log_registration(student_id, success=False, reason="Image decode failed")
         return err
 
     # Preprocess
     processed, reason = preprocess(img)
     if processed is None:
-        log_registration(staff_id, success=False, reason=f"Quality check: {reason}")
+        log_registration(student_id, success=False, reason=f"Quality check: {reason}")
         return jsonify({"error": f"Photo quality issue: {reason}"}), 422
 
     # Quick check: make sure there's exactly one face before augmenting
     faces = get_embedding_from_image(processed)
     if not faces:
-        log_registration(staff_id, success=False, reason="No face detected")
+        log_registration(student_id, success=False, reason="No face detected")
         return jsonify({
             "error": "No face detected. Please upload a clear, front-facing photo."
         }), 422
 
     if len(faces) > 1:
-        log_registration(staff_id, success=False, reason=f"{len(faces)} faces detected")
+        log_registration(student_id, success=False, reason=f"{len(faces)} faces detected")
         return jsonify({
             "error": f"{len(faces)} faces detected. Please upload a photo with exactly one person."
         }), 422
@@ -138,23 +142,24 @@ def register():
     embeddings = generate_augmented_embeddings(processed, get_embedding_from_image)
 
     if not embeddings:
-        log_registration(staff_id, success=False, reason="Augmentation failed")
+        log_registration(student_id, success=False, reason="Augmentation failed")
         return jsonify({"error": "Could not generate embeddings. Please try a different photo."}), 422
 
     # Save to DB
     register_student(
-        staff_id=staff_id,
+        student_id=student_id,
         full_name=full_name,
         department=department,
-        image=image_name,
+        year=year,
+        email=email,
         embeddings=embeddings,
     )
 
-    log_registration(staff_id, success=True)
+    log_registration(student_id, success=True)
 
     return jsonify({
-        "message": f"Staff member {full_name} registered successfully.",
-        "staff_id": staff_id,
+        "message": f"Student {full_name} registered successfully.",
+        "student_id": student_id,
         "embeddings_generated": len(embeddings),
         "augmentations": [e["augmentation"] for e in embeddings],
         "detection_confidence": faces[0]["confidence"],
@@ -198,7 +203,7 @@ def identify():
         return jsonify({
             "faces_detected": len(detected_faces),
             "results": [],
-            "message": "No staff registered yet.",
+            "message": "No students registered yet.",
         })
 
     results = []
@@ -231,18 +236,103 @@ def list_students():
 
 @app.route("/students/<student_id>", methods=["GET"])
 def get_student_by_id(student_id):
-    staff = get_student(student_id)
-    if not staff:
-        return jsonify({"error": f"Staff member {student_id} not found"}), 404
-    staff_safe = {k: v for k, v in staff.items() if k != "embeddings"}
-    return jsonify(staff_safe)
+    student = get_student(student_id)
+    if not student:
+        return jsonify({"error": f"Student {student_id} not found"}), 404
+    student_safe = {k: v for k, v in student.items() if k != "embeddings"}
+    return jsonify(student_safe)
 
 
 @app.route("/students/<student_id>", methods=["DELETE"])
 def remove_student(student_id):
     if not delete_student(student_id):
-        return jsonify({"error": f"Staff member {student_id} not found"}), 404
-    return jsonify({"message": f"Staff member {student_id} removed successfully."})
+        return jsonify({"error": f"Student {student_id} not found"}), 404
+    return jsonify({"message": f"Student {student_id} removed successfully."})
+
+
+# ---------------------------------------------------------------------------
+# Identify from video
+# ---------------------------------------------------------------------------
+
+@app.route("/identify/video", methods=["POST"])
+def identify_video():
+    """
+    Identify people in an uploaded video file.
+
+    Form fields:
+      - video        : video file (MP4, AVI, MOV, MKV)
+      - requested_by : optional, for audit log
+
+    Processing:
+      - Samples 1 frame per second
+      - Runs face detection + ArcFace on each sampled frame
+      - Aggregates matches across frames (voting)
+      - Returns a report of who appeared, when, with what confidence
+
+    Note: Processing time ~ 1 second per second of video on CPU.
+    A 2-minute video takes roughly 2 minutes to process.
+    This is an "upload and wait" endpoint — not real-time.
+    """
+    if "video" not in request.files:
+        return jsonify({"error": "No video uploaded"}), 400
+
+    video_file   = request.files["video"]
+    requested_by = request.form.get("requested_by", "unknown")
+    filename     = video_file.filename or "unknown"
+
+    # Validate file extension
+    allowed_extensions = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in allowed_extensions:
+        return jsonify({
+            "error": f"Unsupported video format '{ext}'. Allowed: {', '.join(allowed_extensions)}"
+        }), 400
+
+    # Check if any students are registered
+    candidates = get_all_embeddings()
+    if not candidates:
+        return jsonify({
+            "error": "No students registered yet. Please register students before processing video."
+        }), 400
+
+    # Save video to a temp file — OpenCV needs a file path, not a stream
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp_path = tmp.name
+        video_file.save(tmp_path)
+
+    try:
+        # Run the full video processing pipeline
+        report = process_video(
+            video_path=tmp_path,
+            candidates=candidates,
+            embedder_fn=get_embedding_from_image,
+            matcher_fn=find_top_matches,
+            preprocessor_fn=preprocess,
+        )
+
+        # Add formatted timestamps for readability
+        for person in report["people_identified"]:
+            person["first_seen"] = format_timestamp(person["first_seen_seconds"])
+            person["last_seen"]  = format_timestamp(person["last_seen_seconds"])
+
+        # Log the identification
+        log_identification(
+            image_filename=filename,
+            faces_detected=report["total_faces_detected"],
+            results=report["people_identified"],
+            requested_by=requested_by,
+        )
+
+        return jsonify(report)
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Video processing failed: {str(e)}"}), 500
+
+    finally:
+        # Always clean up the temp file
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 # ---------------------------------------------------------------------------
