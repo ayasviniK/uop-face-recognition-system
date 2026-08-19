@@ -356,6 +356,84 @@ def stats():
     })
 
 
+
+# ---------------------------------------------------------------------------
+# Spring Boot adapter endpoint
+# ---------------------------------------------------------------------------
+
+@app.route("/api/recognize", methods=["POST"])
+def api_recognize():
+    """
+    Adapter endpoint for Spring Boot integration.
+
+    Spring Boot's AiClient sends:
+      - multipart/form-data with field "file" (not "image")
+      - expects back: { "matches": [{ "studentId": "...", "confidence": 0.87 }] }
+
+    This endpoint translates between Spring Boot's format and our
+    internal pipeline, without changing /identify at all.
+    """
+    # Spring Boot sends the image as "file" not "image"
+    image_file = request.files.get("file") or request.files.get("image")
+    if not image_file:
+        return jsonify({"error": "No image provided", "matches": []}), 400
+
+    image_bytes = np.frombuffer(image_file.read(), np.uint8)
+    img = cv2.imdecode(image_bytes, cv2.IMREAD_COLOR)
+
+    if img is None:
+        return jsonify({"error": "Could not decode image", "matches": []}), 400
+
+    # Preprocess
+    processed, reason = preprocess(img, skip_quality_check=False)
+    if processed is None:
+        return jsonify({"error": reason, "matches": []}), 422
+
+    # Detect + embed
+    detected_faces = get_embedding_from_image(processed)
+    if not detected_faces:
+        return jsonify({"matches": []}), 200
+
+    # Get candidates from mock DB (later: Spring Boot will pass these)
+    candidates = get_all_embeddings()
+    if not candidates:
+        return jsonify({"matches": []}), 200
+
+    # Match all faces, collect results
+    all_matches = []
+    for face in detected_faces:
+        top = find_top_matches(face["embedding"], candidates, top_k=3)
+        for match in top:
+            all_matches.append({
+                # Spring Boot expects camelCase keys
+                "studentId":  match["student_id"],
+                "confidence": match["similarity_score"],
+                # Extra info for debugging — Spring Boot ignores these
+                # thanks to @JsonIgnoreProperties(ignoreUnknown = true)
+                "studentName":         match.get("student_name", ""),
+                "department":          match.get("department", ""),
+                "confidenceLabel":     match.get("confidence_label", ""),
+                "matchedAugmentation": match.get("matched_augmentation", ""),
+            })
+
+    # Sort by confidence descending, deduplicate by studentId
+    seen = set()
+    deduped = []
+    for m in sorted(all_matches, key=lambda x: x["confidence"], reverse=True):
+        if m["studentId"] not in seen:
+            seen.add(m["studentId"])
+            deduped.append(m)
+
+    log_identification(
+        image_filename=image_file.filename or "api_recognize",
+        faces_detected=len(detected_faces),
+        results=[{"face_index": 0, "detection_confidence": 0, "top_matches": deduped}],
+        requested_by="spring-boot",
+    )
+
+    return jsonify({"matches": deduped})
+
+
 # ---------------------------------------------------------------------------
 # Error handlers
 # ---------------------------------------------------------------------------
