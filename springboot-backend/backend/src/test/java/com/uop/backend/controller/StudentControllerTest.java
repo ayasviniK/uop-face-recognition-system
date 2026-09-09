@@ -36,14 +36,16 @@ class StudentControllerTest {
 
     @Test
     void createStudent_returnsCreated() {
-        StudentCreateRequest request = new StudentCreateRequest();
-        request.setStudentId("S1");
-        request.setFullName("John");
+        StudentCreateRequest request = StudentCreateRequest.builder()
+                .studentId("E/18/001")
+                .faculty("Engineering")
+                .tier(1)
+                .build();
 
         StudentResponse response = StudentResponse.builder()
-                .id(1L)
-                .studentId("S1")
-                .fullName("John")
+                .studentId("E/18/001")
+                .faculty("Engineering")
+                .tier(1)
                 .build();
 
         when(studentService.createStudent(request)).thenReturn(response);
@@ -52,7 +54,7 @@ class StudentControllerTest {
 
         assertEquals(201, entity.getStatusCode().value());
         assertNotNull(entity.getBody());
-        assertEquals(1L, entity.getBody().getData().getId());
+        assertEquals("E/18/001", entity.getBody().getData().getStudentId());
     }
 
     @Test
@@ -61,7 +63,7 @@ class StudentControllerTest {
         Page<StudentResponse> pageResult = new PageImpl<>(List.of());
         when(studentService.getAllStudents(pageable)).thenReturn(pageResult);
 
-        ResponseEntity<ApiResponse<Page<StudentResponse>>> entity = studentController.getStudents(null, null, pageable);
+        ResponseEntity<ApiResponse<Page<StudentResponse>>> entity = studentController.getStudents(null, null, null, pageable);
 
         assertEquals(200, entity.getStatusCode().value());
         assertNotNull(entity.getBody());
@@ -70,22 +72,23 @@ class StudentControllerTest {
 
     @Test
     void updateStudent_returnsOk() {
-        StudentUpdateRequest request = new StudentUpdateRequest();
-        request.setStudentId("S2");
-        request.setFullName("Jane");
-
-        StudentResponse response = StudentResponse.builder()
-                .id(2L)
-                .studentId("S2")
-                .fullName("Jane")
+        StudentUpdateRequest request = StudentUpdateRequest.builder()
+                .faculty("Engineering")
+                .tier(2)
                 .build();
 
-        when(studentService.updateStudent(2L, request)).thenReturn(response);
+        StudentResponse response = StudentResponse.builder()
+                .studentId("E/18/001")
+                .faculty("Engineering")
+                .tier(2)
+                .build();
 
-        ResponseEntity<ApiResponse<StudentResponse>> entity = studentController.updateStudent(2L, request);
+        when(studentService.updateStudent("E/18/001", request)).thenReturn(response);
+
+        ResponseEntity<ApiResponse<StudentResponse>> entity = studentController.updateStudent("E/18/001", request);
 
         assertEquals(200, entity.getStatusCode().value());
         assertNotNull(entity.getBody());
-        assertEquals(2L, entity.getBody().getData().getId());
+        assertEquals(2, entity.getBody().getData().getTier());
     }
 }

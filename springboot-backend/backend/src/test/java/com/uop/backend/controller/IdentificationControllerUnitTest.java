@@ -28,7 +28,15 @@ public class IdentificationControllerUnitTest {
 
     @Test
     public void postSearch_returnsResult() throws Exception {
-        IdentificationResponse res = new IdentificationResponse("IT2023001", "John Doe");
+        IdentificationResponse res = IdentificationResponse.builder()
+                .studentId("E/18/001")
+                .name("Kasun Perera")
+                .faculty("Engineering")
+                .year(3)
+                .confidence(0.847)
+                .confidenceLabel("High")
+                .build();
+
         Mockito.when(identificationService.search(Mockito.any())).thenReturn(res);
 
         MockMultipartFile file = new MockMultipartFile("file", "photo.jpg", MediaType.IMAGE_JPEG_VALUE,
@@ -36,7 +44,10 @@ public class IdentificationControllerUnitTest {
 
         mockMvc.perform(MockMvcRequestBuilders.multipart("/api/identification/search").file(file))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.studentId").value("IT2023001"))
-                .andExpect(jsonPath("$.data.fullName").value("John Doe"));
+                .andExpect(jsonPath("$.data.studentId").value("E/18/001"))
+                .andExpect(jsonPath("$.data.name").value("Kasun Perera"))
+                .andExpect(jsonPath("$.data.faculty").value("Engineering"))
+                .andExpect(jsonPath("$.data.confidence").value(0.847))
+                .andExpect(jsonPath("$.data.confidenceLabel").value("High"));
     }
 }

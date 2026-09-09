@@ -1,11 +1,12 @@
 package com.uop.backend.service.impl;
 
+import java.util.ArrayList;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.uop.backend.dto.request.StudentCreateRequest;
 import com.uop.backend.dto.request.StudentUpdateRequest;
@@ -15,10 +16,9 @@ import com.uop.backend.exception.ResourceNotFoundException;
 import com.uop.backend.mapper.StudentMapper;
 import com.uop.backend.model.Student;
 import com.uop.backend.repository.StudentRepository;
+import com.uop.backend.service.FacultyResolver;
 import com.uop.backend.service.StudentService;
-import com.uop.backend.storage.StorageService;
 
-import java.util.ArrayList;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 
@@ -28,14 +28,26 @@ import lombok.RequiredArgsConstructor;
 public class StudentServiceImpl implements StudentService {
 
     private final StudentRepository studentRepository;
-    private final StorageService storageService;
+    private final FacultyResolver facultyResolver;
 
     @Override
     public StudentResponse createStudent(StudentCreateRequest request) {
-        if (studentRepository.existsByStudentId(request.getStudentId())){
-            throw new DuplicateResourceException("studentId already exists");
+        String studentId = request.getStudentId().trim();
+        if (studentRepository.existsByStudentId(studentId)) {
+            throw new DuplicateResourceException("studentId already exists: " + studentId);
         }
-        Student s = StudentMapper.fromCreateRequest(request);
+
+        String faculty = request.getFaculty();
+        if (faculty == null || faculty.isBlank()) {
+            faculty = facultyResolver.resolve(studentId);
+        }
+
+        Student s = Student.builder()
+                .studentId(studentId)
+                .faculty(faculty)
+                .tier(request.getTier() != null ? request.getTier() : 1)
+                .build();
+
         Student saved = studentRepository.save(s);
         return StudentMapper.toResponse(saved);
     }
@@ -49,14 +61,17 @@ public class StudentServiceImpl implements StudentService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<StudentResponse> searchStudents(String studentId, String fullName, Pageable pageable) {
+    public Page<StudentResponse> searchStudents(String studentId, String faculty, Integer tier, Pageable pageable) {
         Specification<Student> spec = (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (studentId != null && !studentId.trim().isEmpty()) {
                 predicates.add(cb.like(cb.lower(root.get("studentId")), "%" + studentId.trim().toLowerCase() + "%"));
             }
-            if (fullName != null && !fullName.trim().isEmpty()) {
-                predicates.add(cb.like(cb.lower(root.get("fullName")), "%" + fullName.trim().toLowerCase() + "%"));
+            if (faculty != null && !faculty.trim().isEmpty()) {
+                predicates.add(cb.like(cb.lower(root.get("faculty")), "%" + faculty.trim().toLowerCase() + "%"));
+            }
+            if (tier != null) {
+                predicates.add(cb.equal(root.get("tier"), tier));
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };
@@ -65,21 +80,16 @@ public class StudentServiceImpl implements StudentService {
 
     @Override
     @Transactional(readOnly = true)
-    public StudentResponse getStudentById(Long id) {
-        Student s = studentRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
+    public StudentResponse getStudentById(String studentId) {
+        Student s = studentRepository.findByStudentId(studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found: " + studentId));
         return StudentMapper.toResponse(s);
     }
 
     @Override
-    public StudentResponse updateStudent(Long id, StudentUpdateRequest request) {
-        Student s = studentRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
-
-        // check studentId uniqueness
-        if (!s.getStudentId().equals(request.getStudentId()) && studentRepository.existsByStudentId(request.getStudentId())){
-            throw new DuplicateResourceException("studentId already exists");
-        }
+    public StudentResponse updateStudent(String studentId, StudentUpdateRequest request) {
+        Student s = studentRepository.findByStudentId(studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found: " + studentId));
 
         StudentMapper.updateFromDto(request, s);
         Student updated = studentRepository.save(s);
@@ -87,21 +97,10 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
-    public void deleteStudent(Long id) {
-        if (!studentRepository.existsById(id)){
-            throw new ResourceNotFoundException("Student not found");
+    public void deleteStudent(String studentId) {
+        if (!studentRepository.existsByStudentId(studentId)) {
+            throw new ResourceNotFoundException("Student not found: " + studentId);
         }
-        studentRepository.deleteById(id);
-    }
-
-    @Override
-    public StudentResponse updateStudentImageByStudentId(String studentId, MultipartFile file) {
-        Student s = studentRepository.findByStudentId(studentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
-
-        String path = storageService.store(file, studentId);
-        s.setImagePath(path);
-        Student updated = studentRepository.save(s);
-        return StudentMapper.toResponse(updated);
+        studentRepository.deleteById(studentId);
     }
 }

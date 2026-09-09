@@ -1,5 +1,7 @@
 package com.uop.backend.dto.response;
 
+import java.time.LocalDateTime;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,8 +12,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class StudentResponse {
-    private Long id;
     private String studentId;
-    private String fullName;
-    private String imagePath;
+    private String faculty;
+    private Integer tier;
+    private LocalDateTime syncedAt;
+    private LocalDateTime updatedAt;
 }

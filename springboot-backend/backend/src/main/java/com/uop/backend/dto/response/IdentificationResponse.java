@@ -11,5 +11,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class IdentificationResponse {
     private String studentId;
-    private String fullName;
+    private String name;
+    private String faculty;
+    private Integer year;
+    private String photoUrl;
+    private Double confidence;
+    private String confidenceLabel;
 }

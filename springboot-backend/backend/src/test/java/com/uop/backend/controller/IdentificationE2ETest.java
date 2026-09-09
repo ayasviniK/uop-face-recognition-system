@@ -9,26 +9,30 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import com.github.tomakehurst.wiremock.WireMockServer;
-import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
-import com.uop.backend.model.Student;
-import com.uop.backend.repository.StudentRepository;
-
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.security.test.context.support.WithMockUser;
+
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import com.uop.backend.client.UniversityIndexClient;
+import com.uop.backend.dto.response.UniversityStudentResponse;
+import com.uop.backend.model.Student;
+import com.uop.backend.repository.StudentRepository;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -43,6 +47,9 @@ public class IdentificationE2ETest {
 
     @Autowired
     private StudentRepository studentRepository;
+
+    @MockBean
+    private UniversityIndexClient universityIndexClient;
 
     @BeforeAll
     public static void startWireMock() throws Exception {
@@ -73,18 +80,27 @@ public class IdentificationE2ETest {
     @BeforeEach
     public void setUp() {
         studentRepository.deleteAll();
-        
+
         // Seed the recognized student
         Student student = Student.builder()
-                .studentId("IT2024001")
-                .fullName("E2E Student")
-                .imagePath("uploads/students/IT2024001.jpg")
+                .studentId("E/18/001")
+                .faculty("Engineering")
+                .tier(1)
                 .build();
         studentRepository.save(student);
 
         wireMockServer.stubFor(post(urlEqualTo("/api/recognize"))
                 .willReturn(aResponse().withHeader("Content-Type", "application/json")
-                        .withBody("{\"matches\":[{\"studentId\":\"IT2024001\",\"confidence\":95.0}]}")));
+                        .withBody("{\"matches\":[{\"studentId\":\"E/18/001\",\"confidence\":0.95}]}")));
+
+        UniversityStudentResponse uStudent = UniversityStudentResponse.builder()
+                .studentId("E/18/001")
+                .name("Kasun Perera")
+                .faculty("Engineering")
+                .year(4)
+                .photoUrl("https://example.com/photo.jpg")
+                .build();
+        Mockito.when(universityIndexClient.getStudent(Mockito.any(), Mockito.eq("E/18/001"))).thenReturn(uStudent);
     }
 
     @Test
@@ -95,7 +111,10 @@ public class IdentificationE2ETest {
 
         mockMvc.perform(MockMvcRequestBuilders.multipart("/api/identification/search").file(file))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.studentId").value("IT2024001"))
-                .andExpect(jsonPath("$.data.fullName").value("E2E Student"));
+                .andExpect(jsonPath("$.data.studentId").value("E/18/001"))
+                .andExpect(jsonPath("$.data.name").value("Kasun Perera"))
+                .andExpect(jsonPath("$.data.faculty").value("Engineering"))
+                .andExpect(jsonPath("$.data.confidence").value(0.95))
+                .andExpect(jsonPath("$.data.confidenceLabel").value("High"));
     }
 }

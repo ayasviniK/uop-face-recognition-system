@@ -5,9 +5,8 @@ import com.uop.backend.dto.response.IdentificationResponse;
 
 public interface IdentificationService {
     /**
-     * Sends the probe image to the Flask service and retrieves the matching student from the database.
-     * Throws appropriate exceptions if no face is detected, multiple faces are detected,
-     * the Flask service is unavailable, or the student is not in the database.
+     * Sends the probe image to the Flask AI service, resolves student faculty,
+     * queries the University Index for full student details, and builds the identification response.
      */
     IdentificationResponse search(MultipartFile image) throws Exception;
 }

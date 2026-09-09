@@ -1,12 +1,11 @@
 package com.uop.backend.service;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import com.uop.backend.dto.request.StudentCreateRequest;
 import com.uop.backend.dto.request.StudentUpdateRequest;
 import com.uop.backend.dto.response.StudentResponse;
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.web.multipart.MultipartFile;
 
 public interface StudentService {
 
@@ -14,13 +13,11 @@ public interface StudentService {
 
     Page<StudentResponse> getAllStudents(Pageable pageable);
 
-    Page<StudentResponse> searchStudents(String studentId, String fullName, Pageable pageable);
+    Page<StudentResponse> searchStudents(String studentId, String faculty, Integer tier, Pageable pageable);
 
-    StudentResponse getStudentById(Long id);
+    StudentResponse getStudentById(String studentId);
 
-    StudentResponse updateStudent(Long id, StudentUpdateRequest request);
+    StudentResponse updateStudent(String studentId, StudentUpdateRequest request);
 
-    void deleteStudent(Long id);
-
-    StudentResponse updateStudentImageByStudentId(String studentId, MultipartFile file);
+    void deleteStudent(String studentId);
 }

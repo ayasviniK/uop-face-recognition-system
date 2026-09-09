@@ -10,24 +10,30 @@ public class StudentMapper {
     public static StudentResponse toResponse(Student s) {
         if (s == null) return null;
         return StudentResponse.builder()
-                .id(s.getId())
                 .studentId(s.getStudentId())
-                .fullName(s.getFullName())
-                .imagePath(s.getImagePath())
+                .faculty(s.getFaculty())
+                .tier(s.getTier())
+                .syncedAt(s.getSyncedAt())
+                .updatedAt(s.getUpdatedAt())
                 .build();
     }
 
-    public static Student fromCreateRequest(StudentCreateRequest r){
+    public static Student fromCreateRequest(StudentCreateRequest r) {
         if (r == null) return null;
         return Student.builder()
                 .studentId(r.getStudentId())
-                .fullName(r.getFullName())
+                .faculty(r.getFaculty())
+                .tier(r.getTier() != null ? r.getTier() : 1)
                 .build();
     }
 
-    public static void updateFromDto(StudentUpdateRequest r, Student s){
+    public static void updateFromDto(StudentUpdateRequest r, Student s) {
         if (r == null || s == null) return;
-        s.setStudentId(r.getStudentId());
-        s.setFullName(r.getFullName());
+        if (r.getFaculty() != null && !r.getFaculty().isBlank()) {
+            s.setFaculty(r.getFaculty());
+        }
+        if (r.getTier() != null) {
+            s.setTier(r.getTier());
+        }
     }
 }

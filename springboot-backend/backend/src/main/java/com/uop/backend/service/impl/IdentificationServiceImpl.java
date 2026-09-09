@@ -7,76 +7,81 @@ import org.springframework.web.multipart.MultipartFile;
 import com.uop.backend.ai.AiClient;
 import com.uop.backend.ai.AiClient.AiMatch;
 import com.uop.backend.ai.AiClient.AiResponse;
+import com.uop.backend.client.UniversityIndexClient;
 import com.uop.backend.dto.response.IdentificationResponse;
+import com.uop.backend.dto.response.UniversityStudentResponse;
 import com.uop.backend.exception.FileValidationException;
 import com.uop.backend.exception.ResourceNotFoundException;
+import com.uop.backend.exception.StudentNotFoundException;
 import com.uop.backend.model.Student;
 import com.uop.backend.repository.StudentRepository;
+import com.uop.backend.service.FacultyResolver;
 import com.uop.backend.service.IdentificationService;
+import com.uop.backend.util.ConfidenceScoreUtil;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class IdentificationServiceImpl implements IdentificationService {
 
     private final AiClient aiClient;
     private final StudentRepository studentRepository;
-
-    public IdentificationServiceImpl(AiClient aiClient, StudentRepository studentRepository) {
-        this.aiClient = aiClient;
-        this.studentRepository = studentRepository;
-    }
+    private final FacultyResolver facultyResolver;
+    private final UniversityIndexClient universityIndexClient;
 
     @Override
     @Transactional(readOnly = true)
     public IdentificationResponse search(MultipartFile image) throws Exception {
         validateImage(image);
 
-        log.info("Sending probe image of size {} bytes to Flask AI recognition service", image.getSize());
-        AiResponse aiResponse;
-        try {
-            aiResponse = aiClient.sendImage(image);
-        } catch (org.springframework.web.client.ResourceAccessException e) {
-            log.error("Flask service is unavailable: {}", e.getMessage());
-            throw new RuntimeException("Face recognition service is currently unavailable", e);
-        } catch (Exception e) {
-            log.error("Error calling Flask service: {}", e.getMessage());
-            throw new RuntimeException("Error occurred during face recognition: " + e.getMessage(), e);
-        }
+        log.info("Sending probe image (size: {} bytes) to Flask AI recognition service", image.getSize());
+        AiResponse aiResponse = aiClient.sendImage(image);
 
-        if (aiResponse == null || aiResponse.matches == null) {
-            log.error("Invalid response format received from Flask service");
-            throw new RuntimeException("Invalid response from face recognition service");
-        }
-
-        // Handle no face detected
-        if (aiResponse.matches.isEmpty()) {
-            log.warn("No face detected or no matching student found by the Flask service");
+        if (aiResponse == null || aiResponse.matches == null || aiResponse.matches.isEmpty()) {
+            log.warn("No face detected or no matching student found by Flask AI service");
             throw new ResourceNotFoundException("No face detected or no matching student found");
         }
 
-        // Handle multiple faces detected if the service returns such details, 
-        // or if we detect multiple matches with high confidence above threshold.
-        // Let's assume if there are more than 3 matches with confidence > 80% it might be a crowd,
-        // or the Flask service can set a flag, but for now we look at the top match.
         AiMatch topMatch = aiResponse.matches.get(0);
         if (topMatch.studentId == null || topMatch.studentId.trim().isEmpty()) {
+            log.warn("AI service returned an empty student ID in top match");
             throw new ResourceNotFoundException("No face detected or no matching student found");
         }
 
-        log.info("Face recognized: studentId={}, confidence={}", topMatch.studentId, topMatch.confidence);
+        double confidence = topMatch.confidence;
+        ConfidenceScoreUtil.validateConfidence(confidence);
+        String confidenceLabel = ConfidenceScoreUtil.getConfidenceLabel(confidence);
 
-        // Fetch matching student details from the database
-        Student student = studentRepository.findByStudentId(topMatch.studentId)
+        log.info("AI matched studentId={}, confidence={}, label={}", topMatch.studentId, confidence, confidenceLabel);
+
+        // 1. Look up student in local database to verify and obtain local metadata
+        Student student = studentRepository.findByStudentId(topMatch.studentId.trim())
                 .orElseThrow(() -> {
-                    log.warn("Recognized studentId {} not found in database", topMatch.studentId);
-                    return new ResourceNotFoundException("Student recognized but not registered in database");
+                    log.warn("Recognized studentId {} not found in local database", topMatch.studentId);
+                    return new StudentNotFoundException("Student recognized by AI (" + topMatch.studentId + ") is not registered in the local database");
                 });
 
+        // 2. Resolve faculty
+        String faculty = student.getFaculty();
+        if (faculty == null || faculty.isBlank()) {
+            faculty = facultyResolver.resolve(student.getStudentId());
+        }
+
+        // 3. Query University Index for full student personal details
+        UniversityStudentResponse universityStudent = universityIndexClient.getStudent(faculty, student.getStudentId());
+
+        // 4. Assemble final identification response
         return IdentificationResponse.builder()
                 .studentId(student.getStudentId())
-                .fullName(student.getFullName())
+                .name(universityStudent != null ? universityStudent.getName() : null)
+                .faculty((universityStudent != null && universityStudent.getFaculty() != null) ? universityStudent.getFaculty() : faculty)
+                .year(universityStudent != null ? universityStudent.getYear() : null)
+                .photoUrl(universityStudent != null ? universityStudent.getPhotoUrl() : null)
+                .confidence(confidence)
+                .confidenceLabel(confidenceLabel)
                 .build();
     }
 

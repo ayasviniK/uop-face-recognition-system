@@ -1,56 +1,40 @@
 package com.uop.backend.integration;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import static org.mockito.ArgumentMatchers.any;
 import org.mockito.Mockito;
 import static org.mockito.Mockito.when;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.web.multipart.MultipartFile;
 
+import com.uop.backend.dto.request.StudentCreateRequest;
 import com.uop.backend.model.Student;
 import com.uop.backend.repository.StudentRepository;
+import com.uop.backend.service.FacultyResolver;
 import com.uop.backend.service.impl.StudentServiceImpl;
-import com.uop.backend.storage.FileSystemStorageService;
-import com.uop.backend.storage.StorageService;
 
 class StudentIntegrationTest {
 
-    @TempDir
-    Path tempDir;
-
     @Test
-    void uploadImage_updatesStudentImagePathAndStoresFile() throws Exception {
+    void createStudent_resolvesFacultyAndSavesStudent() {
         StudentRepository repository = Mockito.mock(StudentRepository.class);
-        StorageService storageService = new FileSystemStorageService(tempDir.toString());
-        StudentServiceImpl service = new StudentServiceImpl(repository, storageService);
+        FacultyResolver facultyResolver = new FacultyResolver();
+        StudentServiceImpl service = new StudentServiceImpl(repository, facultyResolver);
 
-        Student existing = Student.builder()
-                .id(1L)
-                .studentId("INT100")
-                .fullName("Int Test")
-                .build();
-
-        when(repository.findByStudentId("INT100")).thenReturn(Optional.of(existing));
+        when(repository.existsByStudentId("E/18/100")).thenReturn(false);
         when(repository.save(any(Student.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        MultipartFile image = new MockMultipartFile(
-                "file",
-                "face.jpg",
-                "image/jpeg",
-                new byte[] { 1, 2, 3, 4, 5 });
+        StudentCreateRequest req = StudentCreateRequest.builder()
+                .studentId("E/18/100")
+                .build();
 
-        var response = service.updateStudentImageByStudentId("INT100", image);
+        var response = service.createStudent(req);
 
-        assertEquals("INT100", response.getStudentId());
-        assertTrue(response.getImagePath().endsWith("INT100.jpg"));
-        assertTrue(Files.exists(tempDir.resolve("INT100.jpg")));
+        assertNotNull(response);
+        assertEquals("E/18/100", response.getStudentId());
+        assertEquals("Engineering", response.getFaculty());
+        assertEquals(1, response.getTier());
     }
 }

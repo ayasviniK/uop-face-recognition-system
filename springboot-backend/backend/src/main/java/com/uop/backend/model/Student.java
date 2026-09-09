@@ -1,21 +1,20 @@
 package com.uop.backend.model;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "students", uniqueConstraints = {
-        @UniqueConstraint(columnNames = "student_id")
-})
+@Table(name = "students")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -23,15 +22,37 @@ import lombok.NoArgsConstructor;
 public class Student {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(name = "student_id", nullable = false, unique = true, length = 64)
+    @Column(name = "student_id", nullable = false, length = 50)
     private String studentId;
 
-    @Column(name = "full_name", nullable = false, length = 200)
-    private String fullName;
+    @Column(name = "faculty", nullable = false, length = 100)
+    private String faculty;
 
-    @Column(name = "image_path")
-    private String imagePath;
+    @Builder.Default
+    @Column(name = "tier", nullable = false)
+    private Integer tier = 1;
+
+    @Column(name = "synced_at")
+    private LocalDateTime syncedAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (syncedAt == null) {
+            syncedAt = LocalDateTime.now();
+        }
+        if (updatedAt == null) {
+            updatedAt = LocalDateTime.now();
+        }
+        if (tier == null) {
+            tier = 1;
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }

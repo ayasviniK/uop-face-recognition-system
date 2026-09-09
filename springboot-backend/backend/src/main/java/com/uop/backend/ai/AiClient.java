@@ -11,14 +11,23 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.uop.backend.exception.AiServiceException;
+
+import lombok.extern.slf4j.Slf4j;
 
 @Component
+@Slf4j
 public class AiClient {
+
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long BACKOFF_MS = 1000;
 
     private final RestTemplate restTemplate;
     private final String aiUrl;
@@ -42,9 +51,6 @@ public class AiClient {
         public List<AiMatch> matches;
     }
 
-    private static final int MAX_ATTEMPTS = 3;
-    private static final long BACKOFF_MS = 1000;
-
     public AiResponse sendImage(MultipartFile file) throws IOException {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
@@ -67,25 +73,32 @@ public class AiClient {
             try {
                 AiResponse response = restTemplate.postForObject(aiUrl, requestEntity, AiResponse.class);
                 if (response == null) {
-                    throw new RuntimeException("Empty response from AI recognition service");
+                    throw new AiServiceException("Empty response received from AI recognition service");
                 }
                 return response;
-            } catch (org.springframework.web.client.ResourceAccessException e) {
+            } catch (ResourceAccessException e) {
                 lastException = e;
+                log.warn("Attempt {} of {}: AI recognition service connection error", attempt, MAX_ATTEMPTS);
                 if (attempt < MAX_ATTEMPTS) {
                     try {
                         Thread.sleep(BACKOFF_MS * attempt);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
-                        throw new RuntimeException("AI recognition service call interrupted", ie);
+                        throw new AiServiceException("AI recognition service call interrupted", ie);
                     }
                 }
-            } catch (org.springframework.web.client.HttpStatusCodeException e) {
-                throw new RuntimeException("AI recognition service returned error status " + e.getStatusCode() + ": " + e.getResponseBodyAsString(), e);
+            } catch (HttpStatusCodeException e) {
+                log.error("AI service returned HTTP status {}: {}", e.getStatusCode(), e.getMessage());
+                throw new AiServiceException("AI recognition service returned error: " + e.getStatusCode());
+            } catch (AiServiceException e) {
+                throw e;
             } catch (Exception e) {
-                throw new RuntimeException("AI recognition service invocation failed: " + e.getMessage(), e);
+                log.error("AI service invocation error: {}", e.getMessage(), e);
+                throw new AiServiceException("AI recognition service invocation failed", e);
             }
         }
-        throw new RuntimeException("AI recognition service unavailable after " + MAX_ATTEMPTS + " attempts: " + lastException.getMessage(), lastException);
+
+        log.error("AI recognition service unavailable after {} attempts: {}", MAX_ATTEMPTS, lastException != null ? lastException.getMessage() : "unknown error");
+        throw new AiServiceException("AI face recognition service is currently unavailable", lastException);
     }
 }

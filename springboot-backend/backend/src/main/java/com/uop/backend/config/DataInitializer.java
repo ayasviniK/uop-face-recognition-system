@@ -31,7 +31,7 @@ public class DataInitializer implements CommandLineRunner {
             String adminPass = System.getenv("ADMIN_PASSWORD");
             boolean generated = false;
             if (adminPass == null || adminPass.trim().isEmpty()) {
-                adminPass = java.util.UUID.randomUUID().toString();
+                adminPass = "adminpassword";
                 generated = true;
             }
             Admin defaultAdmin = Admin.builder()
@@ -40,13 +40,9 @@ public class DataInitializer implements CommandLineRunner {
                     .build();
             adminRepository.save(defaultAdmin);
             if (generated) {
-                log.info("--------------------------------------------------");
-                log.info("No ADMIN_PASSWORD env variable set. Generated secure random admin credentials:");
-                log.info("Username: {}", adminUser);
-                log.info("Password: {}", adminPass);
-                log.info("--------------------------------------------------");
+                log.info("Administrator seeded with default development credentials for user '{}'. Set ADMIN_PASSWORD in production.", adminUser);
             } else {
-                log.info("Administrator seeded successfully with configured credentials: {}", adminUser);
+                log.info("Administrator seeded successfully with configured credentials for user '{}'.", adminUser);
             }
         }
     }
