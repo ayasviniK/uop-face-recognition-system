@@ -4,13 +4,18 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  Shield, Users, Camera, AlertTriangle, Search, Bell,
-  Upload, CheckCircle, Eye, FileText, BarChart2, Home,
-  UserPlus, Activity, Download, X, ArrowUpRight, ArrowDownRight,
-  MoreHorizontal, CircleDot, Cpu, Zap, ChevronRight,
-  ScanFace, Fingerprint, Database, TrendingUp, RotateCcw,
-  ImageIcon, AlertCircle, Info, Tag,
+  Shield, Users, AlertTriangle, Search,
+  Upload, CheckCircle, Eye, BarChart2, Home,
+  UserPlus, Download, X, ArrowUpRight, ArrowDownRight,
+  CircleDot, Cpu, ChevronRight,
+  ScanFace, Fingerprint, Database, RotateCcw,
+  ImageIcon, AlertCircle, Info, Tag, Lock, LogOut,
 } from "lucide-react";
+import { UOP_FACULTIES, getFacultyById } from "./data/faculties.js";
+import { REGISTRY, MOCK_MATCHES, INCIDENTS_LOG } from "./data/students.js";
+import { DEMO_USERS, getUserFaculty, ROLES } from "./data/users.js";
+import LoginPage from "./components/LoginPage.jsx";
+import DevSwitcher from "./components/DevSwitcher.jsx";
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 const C = {
@@ -30,54 +35,6 @@ const C = {
   sub:     "#8FA3BF",
   muted:   "#4B6080",
 };
-
-// ── Mock student registry ─────────────────────────────────────────────────────
-const REGISTRY = [
-  { id:"STU-001", name:"Ashan Perera",     dept:"Engineering", year:3, initials:"AP", accentColor:"#3B82F6" },
-  { id:"STU-002", name:"Dilini Silva",      dept:"Science",     year:2, initials:"DS", accentColor:"#8B5CF6" },
-  { id:"STU-003", name:"Kasun Fernando",    dept:"Arts",        year:4, initials:"KF", accentColor:"#EF4444", flagged:true },
-  { id:"STU-004", name:"Nimasha Wijekon",   dept:"Medicine",    year:1, initials:"NW", accentColor:"#10B981" },
-  { id:"STU-005", name:"Tharindu Rajap",    dept:"Law",         year:3, initials:"TR", accentColor:"#F59E0B" },
-  { id:"STU-006", name:"Sachini Bandara",   dept:"Engineering", year:2, initials:"SB", accentColor:"#EF4444", flagged:true },
-  { id:"STU-007", name:"Lahiru Dissana",    dept:"IT",          year:4, initials:"LD", accentColor:"#06B6D4" },
-  { id:"STU-008", name:"Malsha Kumara",     dept:"Science",     year:2, initials:"MK", accentColor:"#10B981" },
-];
-
-// Simulated match results when an incident image is "processed"
-const MOCK_MATCHES = [
-  {
-    faceIdx: 0,
-    faceLabel: "Face #1",
-    matchedStudent: REGISTRY[2], // Kasun Fernando
-    confidence: 94.7,
-    appearanceChanges: ["Hair cut shorter","Beard shaved"],
-    facePos: { x:120, y:60, w:85, h:105 },
-  },
-  {
-    faceIdx: 1,
-    faceLabel: "Face #2",
-    matchedStudent: REGISTRY[5], // Sachini Bandara
-    confidence: 88.3,
-    appearanceChanges: ["Hair dyed darker"],
-    facePos: { x:290, y:80, w:75, h:95 },
-  },
-  {
-    faceIdx: 2,
-    faceLabel: "Face #3",
-    matchedStudent: null,
-    confidence: 0,
-    appearanceChanges: [],
-    facePos: { x:210, y:55, w:70, h:90 },
-  },
-];
-
-const INCIDENTS_LOG = [
-  { id:"INC-089", student:"Kasun Fernando",  camera:"Gate A",  time:"2024-03-15 14:32", conf:94.7, status:"confirmed" },
-  { id:"INC-088", student:"Sachini Bandara", camera:"Canteen", time:"2024-03-15 12:18", conf:88.3, status:"review"    },
-  { id:"INC-087", student:"Kasun Fernando",  camera:"Library", time:"2024-03-14 09:55", conf:97.1, status:"confirmed" },
-  { id:"INC-086", student:"Unknown",         camera:"Gate B",  time:"2024-03-13 22:41", conf:0,    status:"unmatched" },
-  { id:"INC-085", student:"Sachini Bandara", camera:"Hostel",  time:"2024-03-12 18:09", conf:91.2, status:"confirmed" },
-];
 
 const trendData = [
   { day:"Mon", incidents:2 }, { day:"Tue", incidents:4 },
@@ -191,14 +148,22 @@ function StatCard({ icon:Icon, label, value, trend, color=C.accent, sub }) {
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 const NAV = [
-  { key:"dashboard", label:"Dashboard",  icon:Home      },
-  { key:"identify",  label:"Identify",   icon:ScanFace, badge:"CORE" },
-  { key:"enroll",    label:"Enrollment", icon:UserPlus  },
-  { key:"evidence",  label:"Evidence",   icon:Eye,      alert:5      },
-  { key:"reports",   label:"Reports",    icon:BarChart2 },
+  { key:"dashboard", label:"Dashboard",        icon:Home },
+  { key:"identify",  label:"Identify",         icon:ScanFace, badge:"CORE" },
+  { key:"enroll",    label:"Faculty API Sync", icon:Database },
+  { key:"evidence",  label:"Evidence",         icon:Eye,      alert:5 },
+  { key:"reports",   label:"Reports",          icon:BarChart2 },
 ];
 
-function Sidebar({ page, setPage }) {
+function Sidebar({ page, setPage, currentUser, onLogout }) {
+  const activeFaculty = getUserFaculty(currentUser);
+  const isAdmin = currentUser?.role === ROLES.ADMIN;
+
+  const navItems = NAV.filter(item => {
+    if (isAdmin) return true;
+    return item.key !== "evidence" && item.key !== "reports";
+  });
+
   return (
     <div style={{
       width:216, background:C.surface, borderRight:`1px solid ${C.border}`,
@@ -224,8 +189,10 @@ function Sidebar({ page, setPage }) {
 
       <nav style={{flex:1,padding:"14px 10px",display:"flex",flexDirection:"column",gap:3}}>
         <div style={{fontSize:9,color:C.muted,letterSpacing:"0.12em",fontWeight:700,
-          padding:"0 8px",marginBottom:6}}>SYSTEM</div>
-        {NAV.map(n=>{
+          padding:"0 8px",marginBottom:6}}>
+          {isAdmin ? "CENTRAL SYSTEM" : `${activeFaculty.code} PORTAL`}
+        </div>
+        {navItems.map(n=>{
           const active = page===n.key;
           return (
             <button key={n.key} onClick={()=>setPage(n.key)} style={{
@@ -244,10 +211,6 @@ function Sidebar({ page, setPage }) {
                   borderRadius:4,background:`${C.accent}30`,color:C.accent,
                   letterSpacing:"0.08em"}}>{n.badge}</span>
               )}
-              {n.alert&&(
-                <span style={{fontSize:9,fontWeight:800,padding:"1px 6px",
-                  borderRadius:99,background:C.danger,color:"#fff"}}>{n.alert}</span>
-              )}
             </button>
           );
         })}
@@ -255,47 +218,71 @@ function Sidebar({ page, setPage }) {
 
       <div style={{padding:"14px 10px",borderTop:`1px solid ${C.border}`}}>
         <div style={{
-          display:"flex",alignItems:"center",gap:9,
+          display:"flex",alignItems:"center",justifyContent:"space-between",
           padding:"10px",borderRadius:9,background:C.raised,
+          border: `1px solid ${activeFaculty.color || C.accent}30`,
         }}>
-          <Avatar initials="SA" size={30} color={C.accent}/>
-          <div>
-            <div style={{fontSize:12,fontWeight:600,color:C.text}}>Security Admin</div>
-            <div style={{fontSize:10,color:C.muted}}>Peradeniya · Active</div>
+          <div style={{display:"flex",alignItems:"center",gap:9,overflow:"hidden",flex:1}}>
+            <Avatar initials={currentUser?.initials || "SA"} size={30} color={activeFaculty.color || C.accent}/>
+            <div style={{overflow:"hidden",flex:1}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                {currentUser?.name || "Security Admin"}
+              </div>
+              <div style={{fontSize:9,color:C.sub,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                {activeFaculty.code === "ALL" ? "Global System Admin" : `Faculty of ${activeFaculty.code}`}
+              </div>
+            </div>
           </div>
+          <button onClick={onLogout} title="Log Out" style={{
+            background:"none",border:"none",color:C.muted,cursor:"pointer",padding:4,
+            display:"flex",alignItems:"center",justifyContent:"center"
+          }}>
+            <LogOut size={15}/>
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function Topbar({ title, sub }) {
-  const [t,setT]=useState(new Date());
-  useEffect(()=>{const iv=setInterval(()=>setT(new Date()),1000);return()=>clearInterval(iv);},[]);
+function Topbar({ title, sub, currentUser, onLogout }) {
+  const [t, setT] = useState(new Date());
+  const activeFaculty = getUserFaculty(currentUser);
+  useEffect(() => { const iv = setInterval(() => setT(new Date()), 1000); return () => clearInterval(iv); }, []);
   return (
-    <div style={{height:60,background:C.surface,borderBottom:`1px solid ${C.border}`,
-      display:"flex",alignItems:"center",justifyContent:"space-between",
-      padding:"0 26px",position:"sticky",top:0,zIndex:50}}>
+    <div style={{
+      height: 60, background: C.surface, borderBottom: `1px solid ${C.border}`,
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "0 26px", position: "sticky", top: 0, zIndex: 50
+    }}>
       <div>
-        <div style={{fontSize:16,fontWeight:700,color:C.text}}>{title}</div>
-        <div style={{fontSize:11,color:C.muted}}>{sub}</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{title}</div>
+        <div style={{ fontSize: 11, color: C.muted }}>{sub}</div>
       </div>
-      <div style={{display:"flex",alignItems:"center",gap:14}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,
-          fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:C.muted}}>
-          <CircleDot size={9} color={C.success}/>
-          {t.toLocaleTimeString()} · UOP Campus Network
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <div style={{
-          width:34,height:34,borderRadius:8,
-          background:C.raised,border:`1px solid ${C.border}`,
-          display:"flex",alignItems:"center",justifyContent:"center",
-          position:"relative",cursor:"pointer",
+          display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 7,
+          background: `${activeFaculty.color || C.accent}15`, border: `1px solid ${activeFaculty.color || C.accent}30`,
+          fontSize: 11, fontWeight: 700, color: activeFaculty.color || C.accent
         }}>
-          <Bell size={15} color={C.sub}/>
-          <div style={{position:"absolute",top:7,right:7,
-            width:6,height:6,borderRadius:"50%",
-            background:C.danger,border:`2px solid ${C.surface}`}}/>
+          <Tag size={12} />
+          {currentUser?.role === ROLES.ADMIN ? "Super Admin Portal" : `${activeFaculty.code} Scope`}
+        </div>
+
+        <button onClick={onLogout} style={{
+          display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8,
+          border: `1px solid ${C.danger}40`, background: `${C.danger}15`, color: C.danger,
+          fontSize: 11, fontWeight: 700, cursor: "pointer"
+        }}>
+          <LogOut size={13} /> Log Out
+        </button>
+
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: C.muted
+        }}>
+          <CircleDot size={9} color={C.success} />
+          {t.toLocaleTimeString()} · UOP
         </div>
       </div>
     </div>
@@ -385,7 +372,6 @@ function IncidentCanvas({ matches, stage }) {
 function PipelineStep({ step, index, currentStep }) {
   const done   = currentStep > index;
   const active = currentStep === index;
-  const pct    = done?100:active?60:0;
   return (
     <div style={{
       padding:"12px 14px",borderRadius:10,
@@ -425,99 +411,121 @@ function PipelineStep({ step, index, currentStep }) {
   );
 }
 
-function MatchCard({ match }) {
+function MatchCard({ match, currentUser }) {
   const { faceLabel, matchedStudent: s, confidence, appearanceChanges } = match;
-  const matched = s!==null;
+  const activeFaculty = getUserFaculty(currentUser);
+  const isGlobalAdmin = currentUser?.role === ROLES.ADMIN;
+
+  const rawMatched = s !== null;
+  const isAuthorizedMatch = rawMatched && (isGlobalAdmin || s.facultyId === currentUser?.facultyId);
 
   return (
     <div style={{
-      background:C.surface,
-      border:`1px solid ${matched?(confidence>90?C.success:C.warning):C.danger}40`,
-      borderRadius:14,overflow:"hidden",
+      background: C.surface,
+      border: `1px solid ${isAuthorizedMatch ? (confidence > 90 ? C.success : C.warning) : rawMatched ? C.warning : C.danger}40`,
+      borderRadius: 14, overflow: "hidden",
     }}>
       {/* Header */}
       <div style={{
-        padding:"12px 16px",
-        background:matched?`${confidence>90?C.success:C.warning}10`:`${C.danger}10`,
-        borderBottom:`1px solid ${C.border}`,
-        display:"flex",alignItems:"center",justifyContent:"space-between",
+        padding: "12px 16px",
+        background: isAuthorizedMatch ? `${confidence > 90 ? C.success : C.warning}10` : rawMatched ? `${C.warning}10` : `${C.danger}10`,
+        borderBottom: `1px solid ${C.border}`,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <Tag size={13} color={matched?C.success:C.danger}/>
-          {mono(faceLabel,12,matched?C.success:C.danger)}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Tag size={13} color={isAuthorizedMatch ? C.success : rawMatched ? C.warning : C.danger} />
+          {mono(faceLabel, 12, isAuthorizedMatch ? C.success : rawMatched ? C.warning : C.danger)}
         </div>
-        {matched
-          ? <Badge label="confirmed"/>
-          : <Badge label="unmatched"/>
+        {isAuthorizedMatch
+          ? <Badge label="confirmed" />
+          : rawMatched
+          ? <Badge label="review" />
+          : <Badge label="unmatched" />
         }
       </div>
 
-      <div style={{padding:"16px"}}>
-        {matched ? (
+      <div style={{ padding: "16px" }}>
+        {isAuthorizedMatch ? (
           <>
             {/* Side-by-side comparison — the key UI */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,
-              alignItems:"center",marginBottom:16}}>
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 8,
+              alignItems: "center", marginBottom: 16
+            }}>
               {/* Detected face */}
-              <div style={{textAlign:"center"}}>
-                <div style={{fontSize:9,fontWeight:700,color:C.muted,
-                  letterSpacing:"0.1em",marginBottom:6}}>FROM INCIDENT</div>
+              <div style={{ textAlign: "center" }}>
                 <div style={{
-                  width:"100%",paddingTop:"115%",position:"relative",
-                  background:C.raised,border:`1px solid ${C.border}`,
-                  borderRadius:8,overflow:"hidden",
+                  fontSize: 9, fontWeight: 700, color: C.muted,
+                  letterSpacing: "0.1em", marginBottom: 6
+                }}>FROM INCIDENT</div>
+                <div style={{
+                  width: "100%", paddingTop: "115%", position: "relative",
+                  background: C.raised, border: `1px solid ${C.border}`,
+                  borderRadius: 8, overflow: "hidden",
                 }}>
-                  <div style={{position:"absolute",inset:0,display:"flex",
-                    flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}>
+                  <div style={{
+                    position: "absolute", inset: 0, display: "flex",
+                    flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4
+                  }}>
                     <Avatar initials={s.initials} size={52}
-                      color={s.accentColor} flagged={s.flagged}/>
-                    <div style={{fontSize:8,color:C.muted,fontFamily:"'JetBrains Mono',monospace",
-                      textAlign:"center",padding:"0 4px"}}>
+                      color={s.accentColor} flagged={s.flagged} />
+                    <div style={{
+                      fontSize: 8, color: C.muted, fontFamily: "'JetBrains Mono',monospace",
+                      textAlign: "center", padding: "0 4px"
+                    }}>
                       CCTV · {match.facePos.w}×{match.facePos.h}px
                     </div>
                   </div>
                   {/* scanline overlay */}
-                  <div style={{position:"absolute",inset:0,
-                    background:"repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.06) 4px)"}}/>
-                  {appearanceChanges.length>0&&(
+                  <div style={{
+                    position: "absolute", inset: 0,
+                    background: "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.06) 4px)"
+                  }} />
+                  {appearanceChanges.length > 0 && (
                     <div style={{
-                      position:"absolute",bottom:0,left:0,right:0,
-                      background:"rgba(239,68,68,0.85)",
-                      padding:"3px 5px",fontSize:8,color:"#fff",fontWeight:700,
-                      textAlign:"center",letterSpacing:"0.05em",
+                      position: "absolute", bottom: 0, left: 0, right: 0,
+                      background: "rgba(239,68,68,0.85)",
+                      padding: "3px 5px", fontSize: 8, color: "#fff", fontWeight: 700,
+                      textAlign: "center", letterSpacing: "0.05em",
                     }}>APPEARANCE CHANGE</div>
                   )}
                 </div>
               </div>
 
               {/* Arrow */}
-              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-                <div style={{width:1,height:20,background:C.border}}/>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                <div style={{ width: 1, height: 20, background: C.border }} />
                 <div style={{
-                  width:28,height:28,borderRadius:"50%",
-                  background:`${C.success}20`,border:`1px solid ${C.success}40`,
-                  display:"flex",alignItems:"center",justifyContent:"center",
+                  width: 28, height: 28, borderRadius: "50%",
+                  background: `${C.success}20`, border: `1px solid ${C.success}40`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <Fingerprint size={13} color={C.success}/>
+                  <Fingerprint size={13} color={C.success} />
                 </div>
-                <div style={{width:1,height:20,background:C.border}}/>
+                <div style={{ width: 1, height: 20, background: C.border }} />
               </div>
 
               {/* ID photo */}
-              <div style={{textAlign:"center"}}>
-                <div style={{fontSize:9,fontWeight:700,color:C.muted,
-                  letterSpacing:"0.1em",marginBottom:6}}>STUDENT ID PHOTO</div>
+              <div style={{ textAlign: "center" }}>
                 <div style={{
-                  width:"100%",paddingTop:"115%",position:"relative",
-                  background:C.raised,border:`2px solid ${s.accentColor}50`,
-                  borderRadius:8,overflow:"hidden",
+                  fontSize: 9, fontWeight: 700, color: C.muted,
+                  letterSpacing: "0.1em", marginBottom: 6
+                }}>STUDENT ID PHOTO</div>
+                <div style={{
+                  width: "100%", paddingTop: "115%", position: "relative",
+                  background: C.raised, border: `2px solid ${s.accentColor}50`,
+                  borderRadius: 8, overflow: "hidden",
                 }}>
-                  <div style={{position:"absolute",inset:0,display:"flex",
-                    flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}>
+                  <div style={{
+                    position: "absolute", inset: 0, display: "flex",
+                    flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4
+                  }}>
                     <Avatar initials={s.initials} size={52}
-                      color={s.accentColor} flagged={s.flagged}/>
-                    <div style={{fontSize:8,color:C.muted,fontFamily:"'JetBrains Mono',monospace",
-                      textAlign:"center",padding:"0 4px"}}>
+                      color={s.accentColor} flagged={s.flagged} />
+                    <div style={{
+                      fontSize: 8, color: C.muted, fontFamily: "'JetBrains Mono',monospace",
+                      textAlign: "center", padding: "0 4px"
+                    }}>
                       REGISTRY · {s.id}
                     </div>
                   </div>
@@ -526,85 +534,110 @@ function MatchCard({ match }) {
             </div>
 
             {/* Confidence */}
-            <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
-              <ConfRing value={confidence}/>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+              <ConfRing value={confidence} />
             </div>
 
             {/* Student details */}
             <div style={{
-              background:C.raised,borderRadius:9,padding:"10px 12px",
-              border:`1px solid ${C.border}`,marginBottom:12,
+              background: C.raised, borderRadius: 9, padding: "10px 12px",
+              border: `1px solid ${C.border}`, marginBottom: 12,
             }}>
-              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                <Avatar initials={s.initials} size={34} color={s.accentColor} flagged={s.flagged}/>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <Avatar initials={s.initials} size={34} color={s.accentColor} flagged={s.flagged} />
                 <div>
-                  <div style={{fontSize:13,fontWeight:700,color:C.text}}>{s.name}</div>
-                  <div style={{fontSize:10,color:C.muted}}>{s.dept} · Year {s.year}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{s.name}</div>
+                  <div style={{ fontSize: 10, color: C.muted }}>{s.dept} · Year {s.year}</div>
                 </div>
-                {mono(s.id,10,C.accent)}
+                {mono(s.id, 10, C.accent)}
               </div>
-              {s.flagged&&(
+              {s.flagged && (
                 <div style={{
-                  display:"flex",alignItems:"center",gap:6,
-                  padding:"5px 8px",borderRadius:6,
-                  background:`${C.danger}15`,border:`1px solid ${C.danger}30`,
-                  fontSize:10,color:C.danger,fontWeight:600,
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "5px 8px", borderRadius: 6,
+                  background: `${C.danger}15`, border: `1px solid ${C.danger}30`,
+                  fontSize: 10, color: C.danger, fontWeight: 600,
                 }}>
-                  <AlertCircle size={11}/>Previously flagged — HIGH PRIORITY
+                  <AlertCircle size={11} />Previously flagged — HIGH PRIORITY
                 </div>
               )}
             </div>
 
             {/* Appearance changes */}
-            {appearanceChanges.length>0&&(
+            {appearanceChanges.length > 0 && (
               <div style={{
-                padding:"8px 10px",borderRadius:8,
-                background:`${C.warning}10`,border:`1px solid ${C.warning}30`,
-                fontSize:11,color:C.warning,
+                padding: "8px 10px", borderRadius: 8,
+                background: `${C.warning}10`, border: `1px solid ${C.warning}30`,
+                fontSize: 11, color: C.warning,
               }}>
-                <div style={{fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:5}}>
-                  <AlertCircle size={11}/>Detected appearance changes:
+                <div style={{ fontWeight: 700, marginBottom: 4, display: "flex", alignItems: "center", gap: 5 }}>
+                  <AlertCircle size={11} />Detected appearance changes:
                 </div>
-                {appearanceChanges.map(c=>(
-                  <div key={c} style={{fontSize:10,color:C.sub,marginLeft:16}}>• {c}</div>
+                {appearanceChanges.map(c => (
+                  <div key={c} style={{ fontSize: 10, color: C.sub, marginLeft: 16 }}>• {c}</div>
                 ))}
-                <div style={{fontSize:9,color:C.muted,marginTop:4}}>
+                <div style={{ fontSize: 9, color: C.muted, marginTop: 4 }}>
                   ArcFace identity embedding is robust to these surface changes
                 </div>
               </div>
             )}
 
             {/* Actions */}
-            <div style={{display:"flex",gap:8,marginTop:12}}>
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <button style={{
-                flex:1,padding:"8px",borderRadius:7,border:"none",cursor:"pointer",
-                background:`linear-gradient(135deg,${C.accent},${C.accentD})`,
-                color:"#fff",fontWeight:700,fontSize:11,
+                flex: 1, padding: "8px", borderRadius: 7, border: "none", cursor: "pointer",
+                background: `linear-gradient(135deg,${C.accent},${C.accentD})`,
+                color: "#fff", fontWeight: 700, fontSize: 11,
               }}>Confirm &amp; Log</button>
               <button style={{
-                padding:"8px 12px",borderRadius:7,
-                border:`1px solid ${C.border}`,background:"transparent",
-                color:C.sub,fontSize:11,cursor:"pointer",
+                padding: "8px 12px", borderRadius: 7,
+                border: `1px solid ${C.border}`, background: "transparent",
+                color: C.sub, fontSize: 11, cursor: "pointer",
               }}>Dispute</button>
             </div>
           </>
+        ) : rawMatched ? (
+          /* Candidate match exists outside currentUser's faculty scope */
+          <div style={{ textAlign: "center", padding: "16px 0" }}>
+            <div style={{
+              width: 52, height: 52, borderRadius: "50%",
+              background: `${C.warning}15`, border: `1px solid ${C.warning}30`,
+              display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px"
+            }}>
+              <Lock size={22} color={C.warning} />
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+              No Authorized Match
+            </div>
+            <div style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>
+              Candidate match exists outside {activeFaculty.code} scope
+            </div>
+            <div style={{
+              padding: "8px 10px", borderRadius: 8, background: `${C.warning}10`,
+              border: `1px solid ${C.warning}30`, fontSize: 10, color: C.warning, textAlign: "center"
+            }}>
+              Student identity protected per UOP RBAC policy. Flask backend will filter cross-faculty recognition candidate results during Phase 6.
+            </div>
+          </div>
         ) : (
           // No match
-          <div style={{textAlign:"center",padding:"20px 0"}}>
-            <div style={{width:56,height:56,borderRadius:"50%",
-              background:`${C.danger}15`,border:`1px solid ${C.danger}30`,
-              display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
-              <X size={24} color={C.danger}/>
+          <div style={{ textAlign: "center", padding: "20px 0" }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: "50%",
+              background: `${C.danger}15`, border: `1px solid ${C.danger}30`,
+              display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px"
+            }}>
+              <X size={24} color={C.danger} />
             </div>
-            <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:6}}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 6 }}>
               No Match Found
             </div>
-            <div style={{fontSize:11,color:C.muted,marginBottom:14}}>
-              Confidence below threshold (80%)<br/>Not in student registry
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
+              Confidence below threshold (80%)<br />Not in student registry
             </div>
             <button style={{
-              padding:"7px 16px",borderRadius:7,fontSize:11,cursor:"pointer",
-              border:`1px solid ${C.border}`,background:"transparent",color:C.sub,
+              padding: "7px 16px", borderRadius: 7, fontSize: 11, cursor: "pointer",
+              border: `1px solid ${C.border}`, background: "transparent", color: C.sub,
             }}>Add to Watchlist</button>
           </div>
         )}
@@ -613,37 +646,59 @@ function MatchCard({ match }) {
   );
 }
 
-function IdentifyPage() {
+function IdentifyPage({ currentUser }) {
   const [uploadStage, setUploadStage] = useState("idle"); // idle|uploaded|processing|done
   const [pipelineStep, setPipelineStep] = useState(-1);
   const [fileName, setFileName] = useState("");
   const [incidentMeta, setIncidentMeta] = useState({ source:"", date:"", location:"" });
+  const [matches, setMatches] = useState(MOCK_MATCHES);
+  const [uploadedFile, setUploadedFile] = useState(null);
   const fileRef = useRef(null);
   const [dragging, setDragging] = useState(false);
 
-  const runPipeline = useCallback(()=>{
+  const runPipeline = useCallback(async ()=>{
     setUploadStage("processing");
     setPipelineStep(0);
     PIPELINE.forEach((_,i)=>{
       setTimeout(()=>{
         setPipelineStep(i+1);
-        if(i===PIPELINE.length-1){
-          setTimeout(()=>setUploadStage("done"),600);
-        }
-      },(i+1)*1200);
+      },(i+1)*1000);
     });
-  },[]);
+
+    if (uploadedFile) {
+      try {
+        const formData = new FormData();
+        formData.append("file", uploadedFile);
+        const res = await fetch("http://localhost:5000/api/recognize", {
+          method: "POST",
+          body: formData,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.faces && data.faces.length > 0) {
+            setMatches(data.faces);
+          }
+        }
+      } catch (err) {
+        console.warn("Python AI Service unreachable, using fallback dataset.", err);
+      }
+    }
+
+    setTimeout(()=>setUploadStage("done"), 4200);
+  },[uploadedFile]);
 
   const handleFile = (file)=>{
     if(!file) return;
+    setUploadedFile(file);
     setFileName(file.name);
     setUploadStage("uploaded");
-    setIncidentMeta({ source:"CCTV / Mobile", date:"2024-03-15", location:"Gate A" });
+    setIncidentMeta({ source:"CCTV / Mobile", date: new Date().toISOString().split("T")[0], location:"Gate A" });
   };
 
   const reset = ()=>{
     setUploadStage("idle"); setPipelineStep(-1);
     setFileName(""); setIncidentMeta({source:"",date:"",location:""});
+    setMatches(MOCK_MATCHES); setUploadedFile(null);
   };
 
   const canvasStage = uploadStage==="idle"?0:uploadStage==="uploaded"?0:
@@ -694,7 +749,7 @@ function IdentifyPage() {
               style={{
                 border:`2px dashed ${dragging?C.accent:C.border}`,
                 borderRadius:14,padding:"52px 24px",
-                textAlign:"center",cursor:"pointer",background:C.surface,
+                textAlign:"center",cursor:"pointer",
                 transition:"border-color 0.2s,background 0.2s",
                 background:dragging?`${C.accent}08`:C.surface,
               }}>
@@ -733,7 +788,7 @@ function IdentifyPage() {
                   <RotateCcw size={14}/>
                 </button>
               </div>
-              <IncidentCanvas matches={MOCK_MATCHES} stage={canvasStage}/>
+              <IncidentCanvas matches={matches} stage={canvasStage}/>
               {/* Metadata row */}
               <div style={{display:"flex",gap:12,marginTop:10}}>
                 {[
@@ -762,11 +817,11 @@ function IdentifyPage() {
                 <CheckCircle size={15} color={C.success}/>
                 Identification Results
                 <span style={{fontSize:11,color:C.muted,fontWeight:400}}>
-                  — {MOCK_MATCHES.filter(m=>m.matchedStudent).length} of {MOCK_MATCHES.length} faces matched
+                  — {matches.filter(m=>m.matchedStudent).length} of {matches.length} faces matched
                 </span>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
-                {MOCK_MATCHES.map(m=><MatchCard key={m.faceIdx} match={m}/>)}
+                {matches.map(m=><MatchCard key={m.faceIdx} match={m} currentUser={currentUser}/>)}
               </div>
             </div>
           )}
@@ -870,88 +925,149 @@ function IdentifyPage() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PAGE: DASHBOARD
+// PAGE: DASHBOARD (Admin vs Faculty)
 // ═══════════════════════════════════════════════════════════════════════════════
-function DashboardPage({ setPage }) {
+
+function AdminDashboard({ setPage, currentUser }) {
   return (
-    <div style={{padding:26,display:"flex",flexDirection:"column",gap:20}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
-        <StatCard icon={Users}        label="Enrolled Students" value="847"   trend={12}  color={C.accent}  />
-        <StatCard icon={AlertTriangle} label="Open Incidents"   value="5"     trend={25}  color={C.danger}  />
-        <StatCard icon={ScanFace}     label="Faces Identified"  value="71"    trend={8}   color={C.success} />
-        <StatCard icon={Cpu}          label="Avg Confidence"    value="92.4%" trend={4}   color={C.purple}  />
+    <div style={{ padding: 26, display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Central Admin Banner */}
+      <div style={{
+        background: `linear-gradient(135deg, ${C.danger}25, ${C.accentD}30)`,
+        border: `1px solid ${C.danger}40`,
+        borderRadius: 14, padding: "20px 24px",
+        display: "flex", alignItems: "center", justifyContent: "space-between"
+      }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+            <Shield size={20} color={C.danger} />
+            <span style={{ fontSize: 16, fontWeight: 800, color: C.text }}>
+              Central Security Command Center (Global Super Admin)
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: C.sub, maxWidth: 620 }}>
+            Global surveillance intelligence across all 9 UOP faculties. Monitor OpenCV AI engine health, FAISS vector index database, campus CCTV node networks, and cross-faculty incident logs.
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+          <div style={{
+            padding: "6px 12px", borderRadius: 8, background: `${C.danger}20`,
+            border: `1px solid ${C.danger}40`, fontSize: 11, fontWeight: 700, color: C.danger
+          }}>
+            SUPER ADMIN MODE
+          </div>
+        </div>
       </div>
 
-      {/* Quick action */}
+      {/* Central System Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+        <StatCard icon={Users} label="Total Campus Students" value="847" trend={12} color={C.accent} sub="All 9 Faculties Registered" />
+        <StatCard icon={Cpu} label="AI Vector Index (FAISS)" value="847" trend={100} color={C.cyan} sub="ArcFace 512-dim Vectors" />
+        <StatCard icon={AlertTriangle} label="Global Security Incidents" value="5" trend={25} color={C.danger} sub="Cross-Faculty Logs" />
+        <StatCard icon={CheckCircle} label="OpenCV AI Engine" value="ONLINE" trend={100} color={C.success} sub="Port 5000 Active" />
+      </div>
+
+      {/* Quick Identification Trigger */}
       <div
-        onClick={()=>setPage("identify")}
+        onClick={() => setPage("identify")}
         style={{
-          background:`linear-gradient(135deg,${C.accentD}40,${C.purple}30)`,
-          border:`1px solid ${C.accent}40`,borderRadius:14,padding:"18px 24px",
-          cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",
-          transition:"border-color 0.2s",
+          background: `linear-gradient(135deg, ${C.accentD}40, ${C.purple}30)`,
+          border: `1px solid ${C.accent}40`, borderRadius: 14, padding: "18px 24px",
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between",
+          transition: "all 0.2s",
         }}>
-        <div style={{display:"flex",alignItems:"center",gap:14}}>
-          <div style={{width:48,height:48,borderRadius:12,
-            background:`${C.accent}30`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-            <ScanFace size={24} color={C.accent}/>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: `${C.accent}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ScanFace size={24} color={C.accent} />
           </div>
           <div>
-            <div style={{fontSize:15,fontWeight:800,color:C.text}}>
-              New Incident? Start Identification →
+            <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>
+              Run Central Face Identification →
             </div>
-            <div style={{fontSize:12,color:C.sub,marginTop:2}}>
-              Upload a fight photo and identify the students involved
+            <div style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>
+              Upload incident screenshot or CCTV photo to search global FAISS student registry
             </div>
           </div>
         </div>
-        <ChevronRight size={20} color={C.accent}/>
+        <ChevronRight size={20} color={C.accent} />
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"3fr 2fr",gap:16}}>
-        {/* Trend */}
-        <div style={{background:C.surface,border:`1px solid ${C.border}`,
-          borderRadius:14,padding:22}}>
-          <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:4}}>
-            Incident Trend</div>
-          <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Past 7 days</div>
+      {/* All 9 Faculties Grid */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>
+              UOP 9 Faculties Security Overview Grid
+            </div>
+            <div style={{ fontSize: 11, color: C.muted }}>
+              Live security status &amp; student enrollment count per faculty
+            </div>
+          </div>
+          <Badge label="online" />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+          {UOP_FACULTIES.map((fac) => {
+            const facStudents = REGISTRY.filter(s => s.facultyId === fac.code);
+            return (
+              <div key={fac.id} style={{
+                background: C.raised, border: `1px solid ${fac.color}35`,
+                borderRadius: 12, padding: "14px 16px",
+                display: "flex", flexDirection: "column", gap: 8,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: fac.color }} />
+                    <span style={{ fontSize: 12, fontWeight: 800, color: C.text }}>{fac.name}</span>
+                  </div>
+                  {mono(fac.code, 10, fac.color)}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.sub, marginTop: 4 }}>
+                  <span>Enrolled Students:</span>
+                  <span style={{ fontWeight: 700, color: C.text }}>{facStudents.length * 12 + 40}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.sub }}>
+                  <span>CCTV Nodes:</span>
+                  <span style={{ fontWeight: 700, color: C.success }}>3 Active</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Global Incident Log & Trend */}
+      <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 16 }}>
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>Campus-Wide Weekly Incidents</div>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>All 9 Faculties aggregated trend</div>
           <ResponsiveContainer width="100%" height={160}>
             <AreaChart data={trendData}>
               <defs>
-                <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={C.accent} stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor={C.accent} stopOpacity={0}/>
+                <linearGradient id="agAdmin" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={C.danger} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={C.danger} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.border}/>
-              <XAxis dataKey="day" tick={{fill:C.muted,fontSize:10}} axisLine={false} tickLine={false}/>
-              <YAxis tick={{fill:C.muted,fontSize:10}} axisLine={false} tickLine={false}/>
-              <Tooltip contentStyle={{background:C.raised,border:`1px solid ${C.border}`,
-                borderRadius:8,color:C.text}}/>
-              <Area type="monotone" dataKey="incidents" stroke={C.accent}
-                fill="url(#ag)" strokeWidth={2} name="Incidents"/>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="day" tick={{ fill: C.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: C.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text }} />
+              <Area type="monotone" dataKey="incidents" stroke={C.danger} fill="url(#agAdmin)" strokeWidth={2} name="Incidents" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Recent incidents */}
-        <div style={{background:C.surface,border:`1px solid ${C.border}`,
-          borderRadius:14,padding:22}}>
-          <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:14}}>
-            Recent Incidents</div>
-          {INCIDENTS_LOG.slice(0,4).map(inc=>(
-            <div key={inc.id} style={{
-              display:"flex",alignItems:"center",gap:10,
-              padding:"9px 0",borderBottom:`1px solid ${C.border}`,
-            }}>
-              <Avatar initials={inc.student.split(" ").map(w=>w[0]).join("").slice(0,2)||"?"}
-                size={32} color={inc.conf>0?C.accent:C.muted}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:12,fontWeight:600,color:C.text,
-                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{inc.student}</div>
-                <div style={{fontSize:10,color:C.muted}}>{inc.camera} · {inc.time.split(" ")[1]}</div>
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 14 }}>Global Recent Incidents</div>
+          {INCIDENTS_LOG.slice(0, 4).map(inc => (
+            <div key={inc.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.border}` }}>
+              <Avatar initials={inc.student.split(" ").map(w => w[0]).join("").slice(0, 2) || "?"} size={32} color={inc.conf > 0 ? C.accent : C.muted} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{inc.student}</div>
+                <div style={{ fontSize: 10, color: C.muted }}>{inc.camera} · {inc.facultyId} Scope</div>
               </div>
-              <Badge label={inc.status}/>
+              <Badge label={inc.status} />
             </div>
           ))}
         </div>
@@ -960,176 +1076,428 @@ function DashboardPage({ setPage }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// PAGE: ENROLLMENT
-// ═══════════════════════════════════════════════════════════════════════════════
-const ENROLL_STEPS = ["Detect Face","Normalize","Extract Embedding","Save to FAISS"];
-
-function EnrollPage() {
-  const [form,setForm]=useState({name:"",id:"",dept:"Engineering",year:"1"});
-  const [stage,setStage]=useState("idle");
-  const [step,setStep]=useState(-1);
-  const [students,setStudents]=useState(REGISTRY);
-  const [search,setSearch]=useState("");
-  const fileRef=useRef(null);
-  const [file,setFile]=useState("");
-
-  const enroll=()=>{
-    if(!form.name||!form.id) return;
-    setStage("running"); setStep(0);
-    ENROLL_STEPS.forEach((_,i)=>{
-      setTimeout(()=>{
-        setStep(i+1);
-        if(i===ENROLL_STEPS.length-1){
-          setStage("done");
-          setStudents(p=>[{
-            id:form.id,name:form.name,dept:form.dept,year:+form.year,
-            initials:form.name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(),
-            accentColor:C.success,
-          },...p]);
-          setTimeout(()=>{setStage("idle");setStep(-1);setForm({name:"",id:"",dept:"Engineering",year:"1"});setFile("");},3000);
-        }
-      },(i+1)*900);
-    });
-  };
-
-  const filtered=students.filter(s=>
-    s.name.toLowerCase().includes(search.toLowerCase())||s.id.toLowerCase().includes(search.toLowerCase())
+function FacultyDashboard({ setPage, currentUser }) {
+  const activeFaculty = getUserFaculty(currentUser);
+  const [studentSearch, setStudentSearch] = useState("");
+  
+  // Strict Faculty Student Filtering
+  const facultyStudents = REGISTRY.filter(s => s.facultyId === currentUser?.facultyId);
+  const filteredStudents = facultyStudents.filter(s =>
+    s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    s.id.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    s.dept.toLowerCase().includes(studentSearch.toLowerCase())
   );
 
-  const inp=(label,key,opts)=>(
-    <div style={{display:"flex",flexDirection:"column",gap:5}}>
-      <label style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:"0.06em"}}>{label}</label>
-      {opts?(
-        <select value={form[key]} onChange={e=>setForm(p=>({...p,[key]:e.target.value}))}
-          style={{background:C.raised,border:`1px solid ${C.border}`,borderRadius:7,
-            padding:"9px 10px",color:C.text,fontSize:13,outline:"none"}}>
-          {opts.map(o=><option key={o}>{o}</option>)}
-        </select>
-      ):(
-        <input value={form[key]} onChange={e=>setForm(p=>({...p,[key]:e.target.value}))}
-          placeholder={`Enter ${label.toLowerCase()}`}
-          style={{background:C.raised,border:`1px solid ${C.border}`,borderRadius:7,
-            padding:"9px 10px",color:C.text,fontSize:13,outline:"none"}}/>
-      )}
-    </div>
-  );
+  const facultyIncidents = INCIDENTS_LOG.filter(inc => inc.ownerFacultyId === currentUser?.facultyId);
 
   return (
-    <div style={{padding:26,display:"flex",flexDirection:"column",gap:16}}>
-      <div style={{display:"grid",gridTemplateColumns:"360px 1fr",gap:16,alignItems:"start"}}>
-        {/* Form */}
-        <div style={{background:C.surface,border:`1px solid ${C.border}`,
-          borderRadius:14,padding:22,display:"flex",flexDirection:"column",gap:14}}>
-          <div style={{fontSize:14,fontWeight:700,color:C.text}}>Register Student</div>
-          <div style={{fontSize:11,color:C.muted}}>
-            Upload a clear passport-size photo from the student's ID card.
-            The system stores an ArcFace embedding — not the raw image — for privacy.
+    <div style={{ padding: 26, display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Faculty Scope Banner */}
+      <div style={{
+        background: `linear-gradient(135deg, ${activeFaculty.color || C.accent}25, ${C.surface})`,
+        border: `1px solid ${activeFaculty.color || C.accent}40`,
+        borderRadius: 14, padding: "20px 24px",
+        display: "flex", alignItems: "center", justifyContent: "space-between"
+      }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+            <Tag size={20} color={activeFaculty.color || C.accent} />
+            <span style={{ fontSize: 16, fontWeight: 800, color: C.text }}>
+              {activeFaculty.name} — Dedicated Faculty Portal
+            </span>
           </div>
-          <div onClick={()=>fileRef.current?.click()} style={{
-            border:`2px dashed ${C.border}`,borderRadius:9,padding:"22px",
-            textAlign:"center",cursor:"pointer",background:C.raised,
-          }}>
-            <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}}
-              onChange={e=>setFile(e.target.files[0]?.name||"")}/>
-            <Upload size={22} color={C.muted} style={{margin:"0 auto 8px"}}/>
-            {file
-              ? <div style={{fontSize:12,color:C.accent,fontWeight:600}}>{file}</div>
-              : <div style={{fontSize:12,color:C.sub}}>Click to upload ID photo</div>
-            }
+          <div style={{ fontSize: 12, color: C.sub, maxWidth: 650 }}>
+            Strict Data Security Protocol Active for {currentUser?.name || "Faculty User"}. You are viewing records and CCTV incident alerts specifically assigned to {activeFaculty.name}. Central system settings and other faculties' records are protected and hidden per UOP RBAC policy.
           </div>
-          {inp("Full Name","name")}
-          {inp("Student ID","id")}
-          {inp("Department","dept",["Engineering","Science","Medicine","Arts","Law","IT"])}
-          {inp("Academic Year","year",["1","2","3","4"])}
-          <button onClick={enroll} disabled={stage==="running"} style={{
-            padding:"11px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,
-            fontSize:13,color:"#fff",
-            background:stage==="running"?C.border:`linear-gradient(135deg,${C.accent},${C.accentD})`,
+        </div>
+        <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+          <div style={{
+            padding: "6px 12px", borderRadius: 8, background: `${activeFaculty.color || C.accent}20`,
+            border: `1px solid ${activeFaculty.color || C.accent}40`, fontSize: 11, fontWeight: 700, color: activeFaculty.color || C.accent
           }}>
-            {stage==="running"?"Processing…":"Enroll Student"}
+            {activeFaculty.code} FACULTY SCOPE
+          </div>
+        </div>
+      </div>
+
+      {/* Faculty Specific Stat Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+        <StatCard icon={Users} label={`${activeFaculty.code} Enrolled Students`} value={facultyStudents.length} trend={8} color={activeFaculty.color || C.accent} sub="Faculty Scope Registry" />
+        <StatCard icon={AlertTriangle} label={`${activeFaculty.code} Open Incidents`} value={facultyIncidents.length || "1"} trend={0} color={C.warning} sub="Under Review" />
+        <StatCard icon={ScanFace} label="Faculty Gate Cameras" value="3" trend={100} color={C.success} sub={`${activeFaculty.code} Gate A & B`} />
+        <StatCard icon={Cpu} label="Recognition Accuracy" value="94.2%" trend={5} color={C.purple} sub="ArcFace Embeddings" />
+      </div>
+
+      {/* Quick Action for Faculty */}
+      <div
+        onClick={() => setPage("identify")}
+        style={{
+          background: `linear-gradient(135deg, ${activeFaculty.color || C.accent}30, ${C.raised})`,
+          border: `1px solid ${activeFaculty.color || C.accent}40`, borderRadius: 14, padding: "18px 24px",
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between",
+          transition: "all 0.2s",
+        }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: `${activeFaculty.color || C.accent}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ScanFace size={24} color={activeFaculty.color || C.accent} />
+          </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>
+              Run Face Identification for {activeFaculty.name} →
+            </div>
+            <div style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>
+              Upload incident photo or CCTV image to identify students enrolled in {activeFaculty.code}
+            </div>
+          </div>
+        </div>
+        <ChevronRight size={20} color={activeFaculty.color || C.accent} />
+      </div>
+
+      {/* Faculty Student Directory & Faculty Incident List */}
+      <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 16 }}>
+        {/* Faculty Students Directory */}
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>
+                {activeFaculty.name} Student Directory
+              </div>
+              <div style={{ fontSize: 11, color: C.muted }}>
+                Showing students registered under {activeFaculty.code} scope only
+              </div>
+            </div>
+            <button onClick={() => setPage("enroll")} style={{
+              background: `${activeFaculty.color || C.accent}20`, border: `1px solid ${activeFaculty.color || C.accent}40`,
+              color: activeFaculty.color || C.accent, padding: "6px 12px", borderRadius: 8,
+              fontSize: 11, fontWeight: 700, cursor: "pointer"
+            }}>+ Register Student</button>
+          </div>
+
+          {/* Search box for faculty directory */}
+          <div style={{ position: "relative", marginBottom: 14 }}>
+            <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: C.muted, display: "flex", alignItems: "center" }}>
+              <Search size={14} />
+            </div>
+            <input
+              type="text"
+              placeholder={`Search ${activeFaculty.code} students by name, ID number, department...`}
+              value={studentSearch}
+              onChange={(e) => setStudentSearch(e.target.value)}
+              style={{
+                width: "100%", height: 36, paddingLeft: 34, paddingRight: 12,
+                borderRadius: 8, border: `1px solid ${C.border}`, background: C.raised,
+                color: C.text, fontSize: 12, outline: "none"
+              }}
+            />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {filteredStudents.length > 0 ? (
+              filteredStudents.map((s) => (
+                <div key={s.id} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "12px 14px", background: C.raised, borderRadius: 10,
+                  border: `1px solid ${C.border}`
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <Avatar initials={s.initials} size={38} color={s.accentColor || activeFaculty.color} flagged={s.flagged} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{s.name}</div>
+                      <div style={{ fontSize: 11, color: C.sub }}>
+                        {s.dept} Department · Year {s.year} Student
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    {mono(s.id, 12, activeFaculty.color || C.accent)}
+                    <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>Biometric Enrolled</div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div style={{ fontSize: 12, color: C.muted, textAlign: "center", padding: "24px 0" }}>
+                No students found matching "{studentSearch}" in {activeFaculty.code}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Faculty Recent Incidents */}
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: C.text, marginBottom: 4 }}>
+            {activeFaculty.code} Security Alerts &amp; Incidents
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
+            CCTV detections originating in {activeFaculty.name}
+          </div>
+          {facultyIncidents.length > 0 ? (
+            facultyIncidents.map(inc => (
+              <div key={inc.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+                <Avatar initials={inc.student.split(" ").map(w => w[0]).join("").slice(0, 2) || "?"} size={34} color={inc.conf > 0 ? activeFaculty.color : C.muted} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{inc.student}</div>
+                  <div style={{ fontSize: 10, color: C.sub }}>{inc.camera} · {inc.time.split(" ")[1]}</div>
+                </div>
+                <Badge label={inc.status} />
+              </div>
+            ))
+          ) : (
+            <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 0" }}>
+              No security incidents reported for {activeFaculty.code}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardPage({ setPage, currentUser }) {
+  const isGlobalAdmin = currentUser?.role === ROLES.ADMIN;
+  return isGlobalAdmin ? (
+    <AdminDashboard setPage={setPage} currentUser={currentUser} />
+  ) : (
+    <FacultyDashboard setPage={setPage} currentUser={currentUser} />
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PAGE: FACULTY API BATCH SYNC & AI INDEXING
+// ═══════════════════════════════════════════════════════════════════════════════
+const SYNC_STEPS = [
+  { key: "api", label: "Querying Faculty MIS API", tech: "GET /api/v1/faculties/{code}/students" },
+  { key: "validate", label: "Validating Student Records & Photos", tech: "Schema & Image Quality Check" },
+  { key: "embedding", label: "Extracting 512-dim ArcFace Embeddings", tech: "Python OpenCV AI Backend" },
+  { key: "indexing", label: "Indexing Vectors to FAISS Database", tech: "L2 Vector Index Registered" }
+];
+
+function FacultySyncPage({ currentUser, students, setStudents }) {
+  const activeFaculty = getUserFaculty(currentUser);
+  const isGlobalAdmin = currentUser?.role === ROLES.ADMIN;
+  
+  const [syncStage, setSyncStage] = useState("idle"); // idle | syncing | done
+  const [currentStep, setCurrentStep] = useState(-1);
+  const [lastSyncTime, setLastSyncTime] = useState("2026-08-21 11:30 AM");
+  const [syncedCount, setSyncedCount] = useState(0);
+
+  const handleSyncBatch = async () => {
+    setSyncStage("syncing");
+    setCurrentStep(0);
+
+    // Step progression animation
+    SYNC_STEPS.forEach((_, i) => {
+      setTimeout(() => {
+        setCurrentStep(i + 1);
+      }, (i + 1) * 1100);
+    });
+
+    try {
+      const facCode = isGlobalAdmin ? "ENG" : activeFaculty.code;
+      const res = await fetch(`http://localhost:5000/api/faculty/${facCode}/sync`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.students) {
+          setSyncedCount(data.students.length);
+        }
+      }
+    } catch (err) {
+      console.warn("Python AI Service sync endpoint fallback:", err);
+    }
+
+    setTimeout(() => {
+      setSyncStage("done");
+      setLastSyncTime(new Date().toLocaleString());
+    }, 4800);
+  };
+
+  const scopedStudents = students.filter(s => {
+    if (isGlobalAdmin) return true;
+    return s.facultyId === currentUser?.facultyId;
+  });
+
+  return (
+    <div style={{ padding: 26, display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Top Banner: Faculty API Connectivity */}
+      <div style={{
+        background: `linear-gradient(135deg, ${activeFaculty.color || C.accent}20, ${C.surface})`,
+        border: `1px solid ${activeFaculty.color || C.accent}40`,
+        borderRadius: 14, padding: "20px 24px",
+        display: "flex", alignItems: "center", justifyContent: "space-between"
+      }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+            <Database size={20} color={activeFaculty.color || C.accent} />
+            <span style={{ fontSize: 16, fontWeight: 800, color: C.text }}>
+              {isGlobalAdmin ? "Global Campus Faculty MIS API Sync" : `${activeFaculty.name} MIS API Sync`}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: C.sub, maxWidth: 650 }}>
+            Automated Faculty API Integration: Student enrollment is managed directly by {isGlobalAdmin ? "each faculty MIS system" : activeFaculty.name}. This module queries the Faculty MIS API to retrieve new student batches, generate 512-dim ArcFace identity embeddings, and index vectors for biometric identification.
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          <div style={{
+            padding: "4px 10px", borderRadius: 6, background: `${C.success}20`,
+            border: `1px solid ${C.success}40`, fontSize: 10, fontWeight: 800, color: C.success,
+            display: "flex", alignItems: "center", gap: 6
+          }}>
+            <CircleDot size={8} color={C.success} /> FACULTY MIS API CONNECTED
+          </div>
+          <div style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>
+            https://api.uop.ac.lk/v1/faculties/{activeFaculty.code || "GLOBAL"}/batch
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 20, alignItems: "start" }}>
+        {/* Left Panel: Batch Sync Trigger */}
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>
+            Faculty Batch Sync Control
+          </div>
+          <div style={{ fontSize: 11, color: C.sub, lineHeight: 1.5 }}>
+            When a new batch of students is registered at {activeFaculty.name}, run the sync process below to pull student records and generate AI biometric embeddings.
+          </div>
+
+          <div style={{
+            background: C.raised, borderRadius: 10, padding: 14,
+            border: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 8
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+              <span style={{ color: C.muted }}>Target Faculty:</span>
+              <span style={{ fontWeight: 700, color: activeFaculty.color || C.accent }}>{activeFaculty.name} ({activeFaculty.code})</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+              <span style={{ color: C.muted }}>Last Batch Sync:</span>
+              <span style={{ fontWeight: 600, color: C.text, fontFamily: "'JetBrains Mono',monospace" }}>{lastSyncTime}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+              <span style={{ color: C.muted }}>AI Model:</span>
+              <span style={{ fontWeight: 700, color: C.purple }}>ArcFace 512-dim</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSyncBatch}
+            disabled={syncStage === "syncing"}
+            style={{
+              padding: "13px", borderRadius: 10, border: "none", cursor: syncStage === "syncing" ? "default" : "pointer",
+              fontWeight: 800, fontSize: 13, color: "#fff",
+              background: syncStage === "syncing" ? C.border : `linear-gradient(135deg, ${activeFaculty.color || C.accent}, ${C.accentD})`,
+              boxShadow: syncStage === "syncing" ? "none" : `0 4px 14px ${activeFaculty.color || C.accent}30`,
+              transition: "all 0.2s"
+            }}>
+            {syncStage === "syncing" ? "⚡ Fetching Faculty API Batch…" : "⚡ Sync Batch from Faculty API"}
           </button>
 
-          {/* Pipeline steps */}
-          {stage!=="idle"&&(
-            <div style={{display:"flex",flexDirection:"column",gap:7}}>
-              {ENROLL_STEPS.map((s,i)=>{
-                const done=i<step, act=i===step&&stage==="running";
+          {/* Sync Progress Pipeline */}
+          {syncStage !== "idle" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+              {SYNC_STEPS.map((s, i) => {
+                const done = currentStep > i;
+                const act = currentStep === i && syncStage === "syncing";
                 return (
-                  <div key={s} style={{
-                    display:"flex",alignItems:"center",gap:9,
-                    padding:"9px 11px",borderRadius:7,
-                    background:done?`${C.success}10`:act?`${C.accent}10`:C.raised,
-                    border:`1px solid ${done?C.success:act?C.accent:C.border}`,transition:"all 0.3s",
+                  <div key={s.key} style={{
+                    padding: "10px 12px", borderRadius: 8,
+                    background: done ? `${C.success}10` : act ? `${C.accent}12` : C.raised,
+                    border: `1px solid ${done ? C.success : act ? C.accent : C.border}`,
+                    display: "flex", alignItems: "center", gap: 10, transition: "all 0.3s"
                   }}>
                     <div style={{
-                      width:18,height:18,borderRadius:"50%",flexShrink:0,
-                      background:done?C.success:act?C.accent:C.border,
-                      display:"flex",alignItems:"center",justifyContent:"center",
+                      width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                      background: done ? C.success : act ? C.accent : C.border,
+                      display: "flex", alignItems: "center", justifyContent: "center"
                     }}>
-                      {done?<CheckCircle size={11} color="#000"/>
-                       :act?<div style={{width:6,height:6,borderRadius:"50%",
-                         background:"#fff",animation:"spin 0.6s linear infinite"}}/>
-                       :<div style={{width:5,height:5,borderRadius:"50%",background:C.muted}}/>}
+                      {done ? <CheckCircle size={13} color="#000" />
+                        : act ? <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff", animation: "spin 0.6s linear infinite" }} />
+                          : <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.muted }} />}
                     </div>
-                    <span style={{fontSize:11,fontWeight:done||act?700:400,
-                      color:done?C.success:act?C.accent:C.muted}}>{s}</span>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: done || act ? 700 : 500, color: done ? C.success : act ? C.accent : C.muted }}>
+                        {s.label}
+                      </div>
+                      <div style={{ fontSize: 9, color: C.muted }}>{s.tech}</div>
+                    </div>
                   </div>
                 );
               })}
-              {stage==="done"&&(
-                <div style={{padding:"9px",borderRadius:7,background:`${C.success}10`,
-                  border:`1px solid ${C.success}`,fontSize:12,fontWeight:700,
-                  color:C.success,textAlign:"center"}}>✓ Student enrolled in FAISS index</div>
+
+              {syncStage === "done" && (
+                <div style={{
+                  padding: "12px", borderRadius: 8, background: `${C.success}15`,
+                  border: `1px solid ${C.success}`, fontSize: 12, fontWeight: 700,
+                  color: C.success, textAlign: "center"
+                }}>
+                  ✓ Batch Synced: {syncedCount || scopedStudents.length} Students Indexed into FAISS Vector DB
+                </div>
               )}
             </div>
           )}
         </div>
 
         {/* Registry */}
-        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:22}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-            <div style={{fontSize:14,fontWeight:700,color:C.text}}>
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
               Student Registry
-              <span style={{marginLeft:8,fontSize:11,color:C.muted,fontWeight:400}}>
-                {filtered.length} records
+              <span style={{ marginLeft: 8, fontSize: 11, color: C.muted, fontWeight: 400 }}>
+                {filtered.length} records visible
               </span>
             </div>
-            <div style={{position:"relative"}}>
+            <div style={{ position: "relative" }}>
               <Search size={13} color={C.muted}
-                style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)"}}/>
-              <input value={search} onChange={e=>setSearch(e.target.value)}
+                style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)" }} />
+              <input value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Search name or ID…"
-                style={{background:C.raised,border:`1px solid ${C.border}`,borderRadius:7,
-                  padding:"8px 10px 8px 28px",color:C.text,fontSize:12,outline:"none",width:210}}/>
+                style={{
+                  background: C.raised, border: `1px solid ${C.border}`, borderRadius: 7,
+                  padding: "8px 10px 8px 28px", color: C.text, fontSize: 12, outline: "none", width: 210
+                }} />
             </div>
           </div>
-          <table style={{width:"100%",borderCollapse:"collapse"}}>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr>{["Student","ID","Dept","Year","Status"].map(h=>(
-                <th key={h} style={{textAlign:"left",padding:"7px 12px",fontSize:10,
-                  fontWeight:700,color:C.muted,borderBottom:`1px solid ${C.border}`,
-                  letterSpacing:"0.06em"}}>{h}</th>
+              <tr>{["Student", "ID", "Faculty", "Dept", "Year", "Status"].map(h => (
+                <th key={h} style={{
+                  textAlign: "left", padding: "7px 12px", fontSize: 10,
+                  fontWeight: 700, color: C.muted, borderBottom: `1px solid ${C.border}`,
+                  letterSpacing: "0.06em"
+                }}>{h}</th>
               ))}</tr>
             </thead>
             <tbody>
-              {filtered.map(s=>(
-                <tr key={s.id} style={{borderBottom:`1px solid ${C.border}`}}>
-                  <td style={{padding:"11px 12px"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:9}}>
-                      <Avatar initials={s.initials} size={30} color={s.accentColor} flagged={s.flagged}/>
-                      <span style={{fontSize:13,fontWeight:600,color:C.text}}>{s.name}</span>
-                    </div>
-                  </td>
-                  <td style={{padding:"11px 12px",fontFamily:"'JetBrains Mono',monospace",
-                    fontSize:11,color:C.accent}}>{s.id}</td>
-                  <td style={{padding:"11px 12px",fontSize:12,color:C.sub}}>{s.dept}</td>
-                  <td style={{padding:"11px 12px",fontSize:12,color:C.sub}}>Year {s.year}</td>
-                  <td style={{padding:"11px 12px"}}>
-                    <Badge label={s.flagged?"flagged":"active"}/>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map(s => {
+                const sFac = getFacultyById(s.facultyId);
+                return (
+                  <tr key={s.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ padding: "11px 12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                        <Avatar initials={s.initials} size={30} color={sFac.color || s.accentColor} flagged={s.flagged} />
+                        <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{s.name}</span>
+                      </div>
+                    </td>
+                    <td style={{
+                      padding: "11px 12px", fontFamily: "'JetBrains Mono',monospace",
+                      fontSize: 11, color: C.accent
+                    }}>{s.id}</td>
+                    <td style={{ padding: "11px 12px" }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+                        background: `${sFac.color}20`, color: sFac.color, border: `1px solid ${sFac.color}40`,
+                      }}>
+                        {sFac.code}
+                      </span>
+                    </td>
+                    <td style={{ padding: "11px 12px", fontSize: 12, color: C.sub }}>{s.dept}</td>
+                    <td style={{ padding: "11px 12px", fontSize: 12, color: C.sub }}>Year {s.year}</td>
+                    <td style={{ padding: "11px 12px" }}>
+                      <Badge label={s.flagged ? "flagged" : "active"} />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1141,56 +1509,118 @@ function EnrollPage() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // PAGE: EVIDENCE
 // ═══════════════════════════════════════════════════════════════════════════════
-function EvidencePage() {
-  const [filter,setFilter]=useState("all");
-  const [sel,setSel]=useState(null);
-  const statuses=["all","confirmed","review","unmatched"];
-  const filtered=INCIDENTS_LOG.filter(i=>filter==="all"||i.status===filter);
+function EvidencePage({ currentUser }) {
+  const [filter, setFilter] = useState("all");
+  const [sel, setSel] = useState(null);
+  const activeFaculty = getUserFaculty(currentUser);
+  const isGlobalAdmin = currentUser?.role === ROLES.ADMIN;
+
+  const scopedIncidents = INCIDENTS_LOG.filter(inc => {
+    if (isGlobalAdmin) return true;
+    return inc.ownerFacultyId === currentUser?.facultyId;
+  });
+
+  const statuses = ["all", "confirmed", "review", "unmatched"];
+  const filtered = scopedIncidents.filter(i => filter === "all" || i.status === filter);
 
   return (
-    <div style={{padding:26,display:"flex",flexDirection:"column",gap:16}}>
-      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        {statuses.map(s=>(
-          <button key={s} onClick={()=>setFilter(s)} style={{
-            padding:"7px 14px",borderRadius:7,border:`1px solid ${filter===s?C.accent:C.border}`,
-            background:filter===s?`${C.accent}18`:"transparent",
-            color:filter===s?C.accent:C.sub,fontSize:11,fontWeight:filter===s?700:500,cursor:"pointer",
-          }}>{s.charAt(0).toUpperCase()+s.slice(1)}</button>
+    <div style={{ padding: 26, display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Scope Indicator Banner */}
+      <div style={{
+        background: isGlobalAdmin ? `${C.accent}12` : `${activeFaculty.color}15`,
+        border: `1px solid ${isGlobalAdmin ? C.accent : activeFaculty.color}40`,
+        borderRadius: 12,
+        padding: "12px 18px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Tag size={16} color={isGlobalAdmin ? C.accent : activeFaculty.color} />
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: isGlobalAdmin ? C.accent : activeFaculty.color, letterSpacing: "0.04em" }}>
+              {isGlobalAdmin ? "GLOBAL ADMIN INCIDENT SCOPE" : `FACULTY INCIDENT SCOPE: ${activeFaculty.name.toUpperCase()} (${activeFaculty.code})`}
+            </div>
+            <div style={{ fontSize: 11, color: C.sub, marginTop: 2 }}>
+              {isGlobalAdmin
+                ? "Viewing all incidents across all university cameras & faculties"
+                : `Showing only incidents owned by ${activeFaculty.name} (ownerFacultyId === "${activeFaculty.code}")`}
+            </div>
+          </div>
+        </div>
+        <div style={{
+          fontSize: 11,
+          fontWeight: 700,
+          padding: "4px 10px",
+          borderRadius: 8,
+          background: isGlobalAdmin ? `${C.accent}20` : `${activeFaculty.color}20`,
+          color: isGlobalAdmin ? C.accent : activeFaculty.color,
+          border: `1px solid ${isGlobalAdmin ? C.accent : activeFaculty.color}40`,
+        }}>
+          {scopedIncidents.length} {scopedIncidents.length === 1 ? "Incident" : "Incidents"} Visible
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {statuses.map(s => (
+          <button key={s} onClick={() => setFilter(s)} style={{
+            padding: "7px 14px", borderRadius: 7, border: `1px solid ${filter === s ? C.accent : C.border}`,
+            background: filter === s ? `${C.accent}18` : "transparent",
+            color: filter === s ? C.accent : C.sub, fontSize: 11, fontWeight: filter === s ? 700 : 500, cursor: "pointer",
+          }}>{s.charAt(0).toUpperCase() + s.slice(1)}</button>
         ))}
-        <button style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:5,
-          padding:"7px 12px",borderRadius:7,border:`1px solid ${C.border}`,
-          background:"transparent",color:C.sub,fontSize:11,cursor:"pointer"}}>
-          <Download size={12}/>Export
+        <button style={{
+          marginLeft: "auto", display: "flex", alignItems: "center", gap: 5,
+          padding: "7px 12px", borderRadius: 7, border: `1px solid ${C.border}`,
+          background: "transparent", color: C.sub, fontSize: 11, cursor: "pointer"
+        }}>
+          <Download size={12} />Export
         </button>
       </div>
 
-      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
-        <table style={{width:"100%",borderCollapse:"collapse"}}>
-          <thead style={{background:C.raised}}>
-            <tr>{["Incident","Student","Camera","Time","Confidence","Status","Action"].map(h=>(
-              <th key={h} style={{textAlign:"left",padding:"11px 15px",fontSize:10,
-                fontWeight:700,color:C.muted,borderBottom:`1px solid ${C.border}`,
-                letterSpacing:"0.07em"}}>{h}</th>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead style={{ background: C.raised }}>
+            <tr>{["Incident", "Student", "Owner Scope", "Camera", "Time", "Confidence", "Status", "Action"].map(h => (
+              <th key={h} style={{
+                textAlign: "left", padding: "11px 15px", fontSize: 10,
+                fontWeight: 700, color: C.muted, borderBottom: `1px solid ${C.border}`,
+                letterSpacing: "0.07em"
+              }}>{h}</th>
             ))}</tr>
           </thead>
           <tbody>
-            {filtered.map(inc=>(
-              <tr key={inc.id} onClick={()=>setSel(inc)}
-                style={{borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}
-                onMouseEnter={e=>e.currentTarget.style.background=C.raised}
-                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <td style={{padding:"12px 15px",fontFamily:"'JetBrains Mono',monospace",
-                  fontSize:11,color:C.accent}}>{inc.id}</td>
-                <td style={{padding:"12px 15px"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <Avatar initials={inc.student.split(" ").map(w=>w[0]).join("").slice(0,2)||"?"}
-                      size={28} color={inc.conf?C.accent:C.muted}/>
-                    <span style={{fontSize:13,color:C.text}}>{inc.student}</span>
-                  </div>
-                </td>
-                <td style={{padding:"12px 15px",fontSize:12,color:C.sub}}>{inc.camera}</td>
-                <td style={{padding:"12px 15px",fontFamily:"'JetBrains Mono',monospace",
-                  fontSize:11,color:C.muted}}>{inc.time}</td>
+            {filtered.map(inc => {
+              const ownerFac = getFacultyById(inc.ownerFacultyId);
+              return (
+                <tr key={inc.id} onClick={() => setSel(inc)}
+                  style={{ borderBottom: `1px solid ${C.border}`, cursor: "pointer" }}
+                  onMouseEnter={e => e.currentTarget.style.background = C.raised}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  <td style={{
+                    padding: "12px 15px", fontFamily: "'JetBrains Mono',monospace",
+                    fontSize: 11, color: C.accent
+                  }}>{inc.id}</td>
+                  <td style={{ padding: "12px 15px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <Avatar initials={inc.student.split(" ").map(w => w[0]).join("").slice(0, 2) || "?"}
+                        size={28} color={inc.conf ? C.accent : C.muted} />
+                      <span style={{ fontSize: 13, color: C.text }}>{inc.student}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: "12px 15px" }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+                      background: `${ownerFac.color}20`, color: ownerFac.color, border: `1px solid ${ownerFac.color}40`,
+                    }}>
+                      {ownerFac.code}
+                    </span>
+                  </td>
+                  <td style={{ padding: "12px 15px", fontSize: 12, color: C.sub }}>{inc.camera}</td>
+                  <td style={{
+                    padding: "12px 15px", fontFamily: "'JetBrains Mono',monospace",
+                    fontSize: 11, color: C.muted
+                  }}>{inc.time}</td>
                 <td style={{padding:"12px 15px"}}>
                   <ConfRing value={inc.conf} size={36}/>
                 </td>
@@ -1202,8 +1632,9 @@ function EvidencePage() {
                     View
                   </button>
                 </td>
-              </tr>
-            ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -1350,13 +1781,32 @@ function ReportsPage() {
 const META = {
   dashboard: { title:"Dashboard",            sub:"Real-time campus security overview" },
   identify:  { title:"Incident Identification", sub:"Upload fight image → detect faces → match to student registry" },
-  enroll:    { title:"Student Enrollment",   sub:"Register students and build the biometric index" },
+  enroll:    { title:"Faculty API Batch Sync & Indexing", sub:"Fetch student batches from Faculty MIS API & generate ArcFace embeddings" },
   evidence:  { title:"Evidence Dashboard",   sub:"Review confirmed and pending incident records" },
   reports:   { title:"Reports & Analytics",  sub:"System performance and incident statistics" },
 };
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [page, setPage] = useState("identify");
+  const [currentUser, setCurrentUser] = useState(DEMO_USERS[0]);
+  const [students, setStudents] = useState(REGISTRY);
+
+  const handleLogin = (user) => {
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+    setPage("dashboard");
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setPage("identify");
+  };
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
   const m = META[page];
   return (
     <>
@@ -1372,15 +1822,15 @@ export default function App() {
         select,input{color-scheme:dark;}
       `}</style>
       <div style={{display:"flex",minHeight:"100vh"}}>
-        <Sidebar page={page} setPage={setPage}/>
+        <Sidebar page={page} setPage={setPage} currentUser={currentUser} onLogout={handleLogout} />
         <div style={{marginLeft:216,flex:1,display:"flex",flexDirection:"column"}}>
-          <Topbar title={m.title} sub={m.sub}/>
+          <Topbar title={m.title} sub={m.sub} currentUser={currentUser} setCurrentUser={setCurrentUser} onLogout={handleLogout} />
           <div style={{flex:1,overflowY:"auto"}}>
-            {page==="dashboard" && <DashboardPage setPage={setPage}/>}
-            {page==="identify"  && <IdentifyPage/>}
-            {page==="enroll"    && <EnrollPage/>}
-            {page==="evidence"  && <EvidencePage/>}
-            {page==="reports"   && <ReportsPage/>}
+            {page==="dashboard" && <DashboardPage setPage={setPage} currentUser={currentUser}/>}
+            {page==="identify"  && <IdentifyPage currentUser={currentUser}/>}
+            {page==="enroll"    && <EnrollPage currentUser={currentUser} students={students} setStudents={setStudents}/>}
+            {page==="evidence"  && (currentUser?.role === ROLES.ADMIN ? <EvidencePage currentUser={currentUser}/> : <DashboardPage setPage={setPage} currentUser={currentUser}/>)}
+            {page==="reports"   && (currentUser?.role === ROLES.ADMIN ? <ReportsPage currentUser={currentUser}/> : <DashboardPage setPage={setPage} currentUser={currentUser}/>)}
           </div>
         </div>
       </div>

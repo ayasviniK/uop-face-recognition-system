@@ -1,0 +1,126 @@
+import { getFacultyById } from "./faculties.js";
+
+export const ROLES = {
+  ADMIN: "ADMIN",
+  FACULTY_USER: "FACULTY_USER",
+};
+
+export const DEMO_USERS = [
+  {
+    id: "usr-admin",
+    name: "System Administrator",
+    role: ROLES.ADMIN,
+    facultyId: null,
+    title: "Central Security & System Admin",
+    email: "admin@uop.ac.lk",
+    initials: "SA",
+    color: "#EF4444",
+    password: "admin123",
+  },
+  {
+    id: "usr-eng",
+    name: "Dr. K. Jayasundara",
+    role: ROLES.FACULTY_USER,
+    facultyId: "ENG",
+    title: "Engineering Faculty Security Officer",
+    email: "dean.eng@uop.ac.lk",
+    initials: "KJ",
+    color: "#3B82F6",
+    password: "eng123",
+  },
+  {
+    id: "usr-med",
+    name: "Dr. S. Wijesinghe",
+    role: ROLES.FACULTY_USER,
+    facultyId: "MED",
+    title: "Medicine Faculty Officer",
+    email: "dean.med@uop.ac.lk",
+    initials: "SW",
+    color: "#10B981",
+    password: "med123",
+  },
+  {
+    id: "usr-sci",
+    name: "Prof. R. Alwis",
+    role: ROLES.FACULTY_USER,
+    facultyId: "SCI",
+    title: "Science Faculty Officer",
+    email: "dean.sci@uop.ac.lk",
+    initials: "RA",
+    color: "#8B5CF6",
+    password: "sci123",
+  },
+  {
+    id: "usr-art",
+    name: "Dr. N. Disanayake",
+    role: ROLES.FACULTY_USER,
+    facultyId: "ART",
+    title: "Arts Faculty Officer",
+    email: "dean.art@uop.ac.lk",
+    initials: "ND",
+    color: "#EF4444",
+    password: "art123",
+  },
+  {
+    id: "usr-ahs",
+    name: "Dr. P. Ratnayake",
+    role: ROLES.FACULTY_USER,
+    facultyId: "AHS",
+    title: "Allied Health Sciences Officer",
+    email: "dean.ahs@uop.ac.lk",
+    initials: "PR",
+    color: "#06B6D4",
+    password: "ahs123",
+  },
+  {
+    id: "usr-agr",
+    name: "Dr. M. Herath",
+    role: ROLES.FACULTY_USER,
+    facultyId: "AGR",
+    title: "Agriculture Faculty Officer",
+    email: "dean.agr@uop.ac.lk",
+    initials: "MH",
+    color: "#10B981",
+    password: "agr123",
+  },
+  {
+    id: "usr-den",
+    name: "Dr. T. Abeykoon",
+    role: ROLES.FACULTY_USER,
+    facultyId: "DEN",
+    title: "Dental Sciences Officer",
+    email: "dean.den@uop.ac.lk",
+    initials: "TA",
+    color: "#EC4899",
+    password: "den123",
+  },
+  {
+    id: "usr-mgt",
+    name: "Dr. B. Gunawardena",
+    role: ROLES.FACULTY_USER,
+    facultyId: "MGT",
+    title: "Management Faculty Officer",
+    email: "dean.mgt@uop.ac.lk",
+    initials: "BG",
+    color: "#F59E0B",
+    password: "mgt123",
+  },
+  {
+    id: "usr-vet",
+    name: "Dr. C. Kulatunga",
+    role: ROLES.FACULTY_USER,
+    facultyId: "VET",
+    title: "Veterinary Medicine Officer",
+    email: "dean.vet@uop.ac.lk",
+    initials: "CK",
+    color: "#6366F1",
+    password: "vet123",
+  },
+];
+
+export function getUserFaculty(user) {
+  if (!user || !user.facultyId) {
+    return { id: "ALL", code: "ALL", name: "All Faculties (Global Admin)", color: "#EF4444" };
+  }
+  return getFacultyById(user.facultyId);
+}
