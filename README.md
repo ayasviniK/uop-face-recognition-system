@@ -1,1 +1,1 @@
-# uop-face-recognition-system
+# University of Peradeniya Face Recognition System
