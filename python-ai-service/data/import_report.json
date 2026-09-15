@@ -1,0 +1,1062 @@
+{
+  "import_timestamp": "2026-07-08T06:32:09.311929+00:00",
+  "dataset_path": "C:\\Users\\kgang\\.cache\\kagglehub\\datasets\\kaustubhdhote\\human-faces-dataset\\versions\\1",
+  "total_attempted": 150,
+  "successful": 149,
+  "failed": 1,
+  "duration_seconds": 1575.6,
+  "avg_seconds_per_student": 10.5,
+  "registered_students": [
+    {
+      "success": true,
+      "student_id": "UOP2022IT001",
+      "full_name": "Chamath Wickramasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7722
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021PH002",
+      "full_name": "Sanduni Jayasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8707
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022MA003",
+      "full_name": "Ishara Silva",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.805
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021IT004",
+      "full_name": "Nimesha Karunaratne",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7598
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024CS005",
+      "full_name": "Dulani Weerasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8318
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024PH006",
+      "full_name": "Kavindi Mendis",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8194
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023IT007",
+      "full_name": "Nimesha Perera",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8206
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021PH008",
+      "full_name": "Dewmini Liyanage",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7439
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021MA009",
+      "full_name": "Dewmini Kumara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8817
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023ET010",
+      "full_name": "Sachith Fernando",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8518
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023ST011",
+      "full_name": "Hansika Siriwardena",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8336
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021CS012",
+      "full_name": "Kasun Senanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8243
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022MA013",
+      "full_name": "Dulani Herath",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8136
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021ET014",
+      "full_name": "Amali Herath",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8166
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023PH015",
+      "full_name": "Senuri Bandara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8547
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022ST016",
+      "full_name": "Hansika Gunasekara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8469
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021ST017",
+      "full_name": "Senuri Bandara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8552
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024ET018",
+      "full_name": "Kasun Karunaratne",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7811
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021MA019",
+      "full_name": "Senuri Ranasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7718
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022ST020",
+      "full_name": "Ruwani Dissanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8803
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023MA021",
+      "full_name": "Ruwani Perera",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8688
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021ST022",
+      "full_name": "Asanka Ranasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7828
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023CS023",
+      "full_name": "Dulani Kumara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8284
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024IT024",
+      "full_name": "Malsha Siriwardena",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8333
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021IT025",
+      "full_name": "Dulani Ranasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8259
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021IT026",
+      "full_name": "Sithum Pathirana",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8408
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022ET027",
+      "full_name": "Praveen Perera",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8334
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021ST028",
+      "full_name": "Kasun Senanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8473
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022IT029",
+      "full_name": "Sanduni Karunaratne",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8275
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024ET030",
+      "full_name": "Asanka Wickramasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8251
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021ST031",
+      "full_name": "Nuwan Kumara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.864
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024IT032",
+      "full_name": "Thilina Madushanka",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8142
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022IT033",
+      "full_name": "Hansika Bandara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8702
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024IT034",
+      "full_name": "Piyumi Fernando",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8255
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023IT035",
+      "full_name": "Amali Fernando",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7856
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022PH036",
+      "full_name": "Praveen Herath",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7984
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023PH037",
+      "full_name": "Thisari Siriwardena",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7484
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024IT038",
+      "full_name": "Ravindu Silva",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8069
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024PH039",
+      "full_name": "Sachith Karunaratne",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8454
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024MA040",
+      "full_name": "Lahiru Rajapaksa",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8106
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021MA041",
+      "full_name": "Dulani Gunasekara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8085
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023ST042",
+      "full_name": "Ruwani Liyanage",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.771
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024ST043",
+      "full_name": "Sachith Herath",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8036
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021IT044",
+      "full_name": "Hiruni Senanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8467
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022ET045",
+      "full_name": "Kavindi Silva",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8168
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024CS046",
+      "full_name": "Nimesha Perera",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7789
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022ST047",
+      "full_name": "Sanduni Mendis",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8264
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021IT048",
+      "full_name": "Asanka Fernando",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8561
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021PH049",
+      "full_name": "Lahiru Karunaratne",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8586
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021ST050",
+      "full_name": "Sachith Siriwardena",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7534
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023ST051",
+      "full_name": "Thisari Fernando",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8492
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022ST052",
+      "full_name": "Sithum Ranasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8369
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021ET053",
+      "full_name": "Sanduni Gunasekara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8726
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023MA054",
+      "full_name": "Thilina Karunaratne",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7942
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022ST055",
+      "full_name": "Piyumi Bandara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8531
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023MA056",
+      "full_name": "Hansika Liyanage",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7222
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022ET057",
+      "full_name": "Dineth Weerasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7781
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022MA058",
+      "full_name": "Ishara Silva",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8184
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024PH059",
+      "full_name": "Amali Pathirana",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7983
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021IT060",
+      "full_name": "Nethmi Pathirana",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8249
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023CS061",
+      "full_name": "Piyumi Siriwardena",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8188
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021MA062",
+      "full_name": "Dewmini Kumara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7859
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023IT063",
+      "full_name": "Sithum Silva",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8203
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024ET064",
+      "full_name": "Ruwani Mendis",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7849
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021IT065",
+      "full_name": "Dewmini Silva",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8445
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022IT066",
+      "full_name": "Nethmi Weerasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8265
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023ET067",
+      "full_name": "Sachith Pathirana",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.776
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021ST068",
+      "full_name": "Sachith Wickramasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7995
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023IT069",
+      "full_name": "Kasun Dissanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7958
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024ST070",
+      "full_name": "Tharaka Ranasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7987
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022MA071",
+      "full_name": "Dewmini Pathirana",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7929
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024IT072",
+      "full_name": "Sithum Senanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8307
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021CS073",
+      "full_name": "Nuwan Karunaratne",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8499
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022IT074",
+      "full_name": "Sanduni Fernando",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8324
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022ST075",
+      "full_name": "Piyumi Jayasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7866
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024PH076",
+      "full_name": "Sanduni Jayasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.847
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022CS077",
+      "full_name": "Nethmi Madushanka",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7899
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021MA078",
+      "full_name": "Praveen Herath",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7728
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023ST079",
+      "full_name": "Hansika Kumara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8218
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022ST080",
+      "full_name": "Dilini Silva",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7881
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021IT081",
+      "full_name": "Sachith Perera",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.851
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021ST082",
+      "full_name": "Piyumi Dissanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8085
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023PH083",
+      "full_name": "Praveen Mendis",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8448
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022MA084",
+      "full_name": "Dulani Dissanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7958
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022IT085",
+      "full_name": "Hiruni Liyanage",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8593
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021MA086",
+      "full_name": "Sithum Wickramasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8168
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023ET087",
+      "full_name": "Dineth Bandara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8412
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023MA088",
+      "full_name": "Kavindi Madushanka",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8633
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024CS089",
+      "full_name": "Dilshan Bandara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8007
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023ST090",
+      "full_name": "Tharaka Perera",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8614
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024IT091",
+      "full_name": "Dilshan Rajapaksa",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8237
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021MA092",
+      "full_name": "Lahiru Kumara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8844
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022MA093",
+      "full_name": "Ruwani Gunasekara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8778
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024CS094",
+      "full_name": "Sithum Siriwardena",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8528
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022PH095",
+      "full_name": "Dilshan Fernando",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8048
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021PH096",
+      "full_name": "Sithum Perera",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8402
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023CS097",
+      "full_name": "Hiruni Liyanage",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8704
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024PH098",
+      "full_name": "Dilini Rajapaksa",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8364
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023PH099",
+      "full_name": "Kavindi Senanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8242
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023CS100",
+      "full_name": "Nethmi Mendis",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.6422
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022IT101",
+      "full_name": "Piyumi Kumara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.833
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021CS102",
+      "full_name": "Dineth Dissanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.6949
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023ET103",
+      "full_name": "Sachith Jayasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8091
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023ST104",
+      "full_name": "Asanka Senanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8309
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022CS105",
+      "full_name": "Kasun Silva",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7573
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022CS106",
+      "full_name": "Sanduni Senanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.82
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022IT107",
+      "full_name": "Dilini Perera",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8391
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023ST108",
+      "full_name": "Kasun Wickramasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8116
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023IT109",
+      "full_name": "Amali Gunasekara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8682
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023PH110",
+      "full_name": "Praveen Jayasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8259
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022MA111",
+      "full_name": "Lahiru Madushanka",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8152
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021CS112",
+      "full_name": "Nimesha Ranasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.858
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023MA113",
+      "full_name": "Ruwani Mendis",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8228
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021MA114",
+      "full_name": "Dilini Gunasekara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7896
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021CS115",
+      "full_name": "Dewmini Senanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8118
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021CS116",
+      "full_name": "Praveen Madushanka",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8437
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021IT117",
+      "full_name": "Nuwan Siriwardena",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8421
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022IT118",
+      "full_name": "Kavindi Fernando",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.726
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023CS119",
+      "full_name": "Dewmini Jayasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8167
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024ET120",
+      "full_name": "Hiruni Bandara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.807
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022ST121",
+      "full_name": "Praveen Siriwardena",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7937
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021MA122",
+      "full_name": "Senuri Madushanka",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7874
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024MA123",
+      "full_name": "Sachith Perera",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8408
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024IT124",
+      "full_name": "Sithum Gunasekara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8228
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021ST125",
+      "full_name": "Nuwan Silva",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7755
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022MA126",
+      "full_name": "Sanduni Mendis",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8039
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022PH127",
+      "full_name": "Praveen Madushanka",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8096
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024CS128",
+      "full_name": "Piyumi Weerasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8533
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022CS129",
+      "full_name": "Senuri Ranasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8513
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023ST130",
+      "full_name": "Kavindi Liyanage",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8441
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021PH131",
+      "full_name": "Hiruni Liyanage",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.84
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021ET132",
+      "full_name": "Dilini Mendis",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.855
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024MA133",
+      "full_name": "Ishara Siriwardena",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8362
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023PH134",
+      "full_name": "Hiruni Senanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8337
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021MA135",
+      "full_name": "Senuri Dissanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8237
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022IT136",
+      "full_name": "Tharaka Ranasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7739
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021PH137",
+      "full_name": "Dilshan Kumara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7615
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024PH138",
+      "full_name": "Ravindu Karunaratne",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8257
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022CS140",
+      "full_name": "Dilshan Fernando",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8544
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024MA141",
+      "full_name": "Dilini Bandara",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8272
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024MA142",
+      "full_name": "Hansika Karunaratne",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8277
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024IT143",
+      "full_name": "Ruwani Rajapaksa",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.839
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024MA144",
+      "full_name": "Asanka Madushanka",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.7212
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024MA145",
+      "full_name": "Sithum Wickramasinghe",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8481
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022CS146",
+      "full_name": "Ishara Karunaratne",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8592
+    },
+    {
+      "success": true,
+      "student_id": "UOP2021CS147",
+      "full_name": "Nethmi Madushanka",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8204
+    },
+    {
+      "success": true,
+      "student_id": "UOP2022IT148",
+      "full_name": "Malsha Perera",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8143
+    },
+    {
+      "success": true,
+      "student_id": "UOP2024IT149",
+      "full_name": "Dulani Dissanayake",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8278
+    },
+    {
+      "success": true,
+      "student_id": "UOP2023ET150",
+      "full_name": "Ruwani Perera",
+      "embeddings_generated": 6,
+      "detection_confidence": 0.8348
+    }
+  ],
+  "failed_registrations": [
+    {
+      "success": false,
+      "student_id": "UOP2023ET139",
+      "full_name": "Malsha Liyanage",
+      "error": "Photo quality issue: Image is too blurry (sharpness=42.3). Please upload a clearer photo."
+    }
+  ]
+}
