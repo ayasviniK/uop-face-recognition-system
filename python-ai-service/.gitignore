@@ -243,3 +243,4 @@ Face/
 data/mock_db.json
 data/import_report.json
 logs/audit.jsonl
+/sample_data/sql (6).csv
