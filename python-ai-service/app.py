@@ -1,176 +1,456 @@
-import os
-import io
+"""
+UoP Face Recognition - Flask AI Service
+----------------------------------------
+Endpoints:
+  GET    /health              - Service health check
+  POST   /upload              - Image validation + diagnostics
+  POST   /register            - Register a student's face
+  POST   /identify            - Identify face(s) in an image
+  GET    /students            - List all registered students
+  GET    /students/<id>       - Get a single student
+  DELETE /students/<id>       - Remove a student
+  GET    /logs                - View recent audit logs
+  GET    /stats               - System statistics
+"""
+
+from flask import Flask, request, jsonify
 import cv2
 import numpy as np
-from flask import Flask, request, jsonify, make_response
+import traceback
+import os
+import tempfile
+
+from utils.embedder import get_embedding_from_image
+from utils.video_processor import process_video, format_timestamp
+from utils.augmentor import generate_augmented_embeddings
+from utils.matcher import find_top_matches
+from utils.preprocessor import preprocess, get_image_info, check_image_quality
+from utils.mock_db import (
+    register_student,
+    get_all_embeddings,
+    get_student,
+    get_all_students,
+    delete_student,
+    student_count,
+)
+from utils.audit_logger import log_identification, log_registration, get_recent_logs
 
 app = Flask(__name__)
 
-# Add CORS headers to all responses
-@app.after_request
-def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
-    return response
 
-# Initialize OpenCV Haar Cascade Classifier for Face Detection
-CASCADE_PATH = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-face_cascade = cv2.CascadeClassifier(CASCADE_PATH)
+# ---------------------------------------------------------------------------
+# Helper
+# ---------------------------------------------------------------------------
 
-# Student Registry Database (aligned with UOP Frontend Registry)
-REGISTRY_DB = [
-    { "id": "STU-001", "name": "Ashan Perera",     "facultyId": "ENG", "dept": "Engineering", "year": 3, "initials": "AP", "accentColor": "#3B82F6" },
-    { "id": "STU-002", "name": "Dilini Silva",      "facultyId": "SCI", "dept": "Science",     "year": 2, "initials": "DS", "accentColor": "#8B5CF6" },
-    { "id": "STU-003", "name": "Kasun Fernando",    "facultyId": "ART", "dept": "Arts",        "year": 4, "initials": "KF", "accentColor": "#EF4444", "flagged": True },
-    { "id": "STU-004", "name": "Nimasha Wijekon",   "facultyId": "MED", "dept": "Medicine",    "year": 1, "initials": "NW", "accentColor": "#10B981" },
-    { "id": "STU-005", "name": "Tharindu Rajap",    "facultyId": "ART", "dept": "Law",         "year": 3, "initials": "TR", "accentColor": "#F59E0B" },
-    { "id": "STU-006", "name": "Sachini Bandara",   "facultyId": "ENG", "dept": "Engineering", "year": 2, "initials": "SB", "accentColor": "#EF4444", "flagged": True },
-    { "id": "STU-007", "name": "Lahiru Dissana",    "facultyId": "AHS", "dept": "Allied Health","year": 4, "initials": "LD", "accentColor": "#06B6D4" },
-    { "id": "STU-008", "name": "Malsha Kumara",     "facultyId": "SCI", "dept": "Science",     "year": 2, "initials": "MK", "accentColor": "#10B981" },
-    { "id": "STU-009", "name": "Nuwan Bandara",     "facultyId": "AGR", "dept": "Agriculture", "year": 3, "initials": "NB", "accentColor": "#10B981" },
-    { "id": "STU-010", "name": "Chathuri Gamage",   "facultyId": "DEN", "dept": "Dentistry",   "year": 2, "initials": "CG", "accentColor": "#EC4899" },
-    { "id": "STU-011", "name": "Kavinda Jayasuri",  "facultyId": "MGT", "dept": "Management",  "year": 4, "initials": "KJ", "accentColor": "#F59E0B" },
-    { "id": "STU-012", "name": "Ruwanthi Senanaya", "facultyId": "VET", "dept": "Vet Medicine","year": 1, "initials": "RS", "accentColor": "#6366F1" },
-]
+def decode_image(file_storage):
+    image_bytes = np.frombuffer(file_storage.read(), np.uint8)
+    img = cv2.imdecode(image_bytes, cv2.IMREAD_COLOR)
+    if img is None:
+        return None, (jsonify({"error": "Could not decode image. Please upload a valid image file."}), 400)
+    return img, None
 
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({
-        "service": "UOP AI Face Recognition API",
-        "status": "online",
-        "engine": "OpenCV + Haar Cascade / Vector Match",
-        "version": "1.0.0"
-    })
 
-@app.route("/health", methods=["GET"])
+# ---------------------------------------------------------------------------
+# Health
+# ---------------------------------------------------------------------------
+
+@app.route("/health")
 def health():
     return jsonify({
-        "status": "running",
-        "service": "AI Face Recognition Service",
-        "detector_loaded": not face_cascade.empty(),
-        "total_enrolled": len(REGISTRY_DB)
+        "status": "ok",
+        "service": "UoP Face Recognition AI Service",
+        "students_registered": student_count(),
     })
 
-@app.route("/api/recognize", methods=["POST", "OPTIONS"])
-def recognize_face():
-    if request.method == "OPTIONS":
-        return make_response("", 200)
 
-    if 'file' not in request.files and 'image' not in request.files:
-        # If no file was attached, return simulated detection for test payload
+# ---------------------------------------------------------------------------
+# Upload — image diagnostics
+# ---------------------------------------------------------------------------
+
+@app.route("/upload", methods=["POST"])
+def upload_image():
+    if "image" not in request.files:
+        return jsonify({"error": "No image uploaded"}), 400
+
+    img, err = decode_image(request.files["image"])
+    if err:
+        return err
+
+    info = get_image_info(img)
+    quality_ok, quality_reason = check_image_quality(img)
+
+    return jsonify({
+        "message": "Image received successfully",
+        "image_info": info,
+        "quality_check": {
+            "passed": quality_ok,
+            "reason": quality_reason,
+        }
+    })
+
+
+# ---------------------------------------------------------------------------
+# Register
+# ---------------------------------------------------------------------------
+
+@app.route("/register", methods=["POST"])
+def register():
+    """
+    Register a student with augmented embeddings.
+    Generates 6 embedding variants from the single passport photo.
+    """
+    required_fields = ["student_id", "full_name", "department", "year", "email"]
+    for field in required_fields:
+        if field not in request.form:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+
+    if "image" not in request.files:
+        return jsonify({"error": "No image uploaded"}), 400
+
+    student_id = request.form["student_id"].strip()
+    full_name  = request.form["full_name"].strip()
+    department = request.form["department"].strip()
+    year       = int(request.form["year"])
+    email      = request.form["email"].strip()
+
+    img, err = decode_image(request.files["image"])
+    if err:
+        log_registration(student_id, success=False, reason="Image decode failed")
+        return err
+
+    # Preprocess
+    processed, reason = preprocess(img)
+    if processed is None:
+        log_registration(student_id, success=False, reason=f"Quality check: {reason}")
+        return jsonify({"error": f"Photo quality issue: {reason}"}), 422
+
+    # Quick check: make sure there's exactly one face before augmenting
+    faces = get_embedding_from_image(processed)
+    if not faces:
+        log_registration(student_id, success=False, reason="No face detected")
         return jsonify({
-            "success": True,
-            "detected_faces_count": 2,
-            "faces": [
-                {
-                    "faceIdx": 0,
-                    "faceLabel": "Face #1",
-                    "matchedStudent": REGISTRY_DB[2], # Kasun Fernando
-                    "confidence": 94.7,
-                    "appearanceChanges": ["Hair cut shorter", "Beard shaved"],
-                    "facePos": { "x": 120, "y": 60, "w": 85, "h": 105 }
-                },
-                {
-                    "faceIdx": 1,
-                    "faceLabel": "Face #2",
-                    "matchedStudent": REGISTRY_DB[5], # Sachini Bandara
-                    "confidence": 88.3,
-                    "appearanceChanges": ["Hair dyed darker"],
-                    "facePos": { "x": 290, "y": 80, "w": 75, "h": 95 }
-                }
-            ]
-        })
+            "error": "No face detected. Please upload a clear, front-facing photo."
+        }), 422
 
-    file = request.files.get('file') or request.files.get('image')
-    in_memory_file = io.BytesIO()
-    file.save(in_memory_file)
-    data = np.frombuffer(in_memory_file.getvalue(), dtype=np.uint8)
-    img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    if len(faces) > 1:
+        log_registration(student_id, success=False, reason=f"{len(faces)} faces detected")
+        return jsonify({
+            "error": f"{len(faces)} faces detected. Please upload a photo with exactly one person."
+        }), 422
 
-    if img is None:
-        return jsonify({"error": "Invalid image payload"}), 400
+    # Generate augmented embeddings from the single photo
+    embeddings = generate_augmented_embeddings(processed, get_embedding_from_image)
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    if not embeddings:
+        log_registration(student_id, success=False, reason="Augmentation failed")
+        return jsonify({"error": "Could not generate embeddings. Please try a different photo."}), 422
 
-    # Perform face detection using OpenCV
-    faces_rects = face_cascade.detectMultiScale(
-        gray,
-        scaleFactor=1.1,
-        minNeighbors=4,
-        minSize=(30, 30)
+    # Save to DB
+    register_student(
+        student_id=student_id,
+        full_name=full_name,
+        department=department,
+        year=year,
+        email=email,
+        embeddings=embeddings,
     )
 
-    detected_faces = []
-    h_img, w_img = img.shape[:2]
+    log_registration(student_id, success=True)
 
-    # Map detected bounding boxes to registry matches
-    for i, (x, y, w, h) in enumerate(faces_rects):
-        # Calculate mock vector signature from ROI statistics
-        roi = gray[y:y+h, x:x+w]
-        avg_val = float(np.mean(roi)) if roi.size > 0 else 128.0
+    return jsonify({
+        "message": f"Student {full_name} registered successfully.",
+        "student_id": student_id,
+        "embeddings_generated": len(embeddings),
+        "augmentations": [e["augmentation"] for e in embeddings],
+        "detection_confidence": faces[0]["confidence"],
+    }), 201
 
-        # Match index deterministically based on ROI properties
-        match_idx = int(avg_val + i * 37) % (len(REGISTRY_DB) + 1)
-        matched_student = REGISTRY_DB[match_idx] if match_idx < len(REGISTRY_DB) else None
-        
-        # Calculate realistic confidence score
-        confidence = round(82.0 + (avg_val % 16.5), 1) if matched_student else 0.0
 
-        detected_faces.append({
-            "faceIdx": i,
-            "faceLabel": f"Face #{i+1}",
-            "matchedStudent": matched_student,
-            "confidence": confidence,
-            "appearanceChanges": ["Glasses removed"] if (i % 2 == 1 and matched_student) else [],
-            "facePos": { "x": int(x), "y": int(y), "w": int(w), "h": int(h) }
+# ---------------------------------------------------------------------------
+# Identify
+# ---------------------------------------------------------------------------
+
+@app.route("/identify", methods=["POST"])
+def identify():
+    if "image" not in request.files:
+        return jsonify({"error": "No image uploaded"}), 400
+
+    image_file   = request.files["image"]
+    requested_by = request.form.get("requested_by", "unknown")
+    filename     = image_file.filename or "unknown"
+
+    img, err = decode_image(image_file)
+    if err:
+        return err
+
+    processed, reason = preprocess(img, skip_quality_check=False)
+    if processed is None:
+        return jsonify({"error": f"Photo quality issue: {reason}"}), 422
+
+    detected_faces = get_embedding_from_image(processed)
+
+    if not detected_faces:
+        log_identification(filename, 0, [], requested_by)
+        return jsonify({
+            "faces_detected": 0,
+            "results": [],
+            "message": "No faces found in the image.",
         })
 
-    # Fallback if no faces detected in standard detection: provide sample detections scaled to image size
-    if len(detected_faces) == 0:
-        detected_faces = [
-            {
-                "faceIdx": 0,
-                "faceLabel": "Face #1",
-                "matchedStudent": REGISTRY_DB[2], # Kasun Fernando (ART)
-                "confidence": 94.7,
-                "appearanceChanges": ["Hair cut shorter", "Beard shaved"],
-                "facePos": { "x": int(w_img * 0.25), "y": int(h_img * 0.2), "w": int(w_img * 0.2), "h": int(h_img * 0.3) }
-            },
-            {
-                "faceIdx": 1,
-                "faceLabel": "Face #2",
-                "matchedStudent": REGISTRY_DB[5], # Sachini Bandara (ENG)
-                "confidence": 88.3,
-                "appearanceChanges": ["Hair dyed darker"],
-                "facePos": { "x": int(w_img * 0.6), "y": int(h_img * 0.25), "w": int(w_img * 0.18), "h": int(h_img * 0.28) }
-            }
-        ]
+    candidates = get_all_embeddings()
+
+    if not candidates:
+        return jsonify({
+            "faces_detected": len(detected_faces),
+            "results": [],
+            "message": "No students registered yet.",
+        })
+
+    results = []
+    for i, face in enumerate(detected_faces):
+        top_matches = find_top_matches(face["embedding"], candidates, top_k=5)
+        results.append({
+            "face_index": i,
+            "bounding_box": face["box"],
+            "detection_confidence": face["confidence"],
+            "top_matches": top_matches,
+        })
+
+    log_identification(filename, len(detected_faces), results, requested_by)
 
     return jsonify({
-        "success": True,
-        "detected_faces_count": len(detected_faces),
-        "image_size": { "width": w_img, "height": h_img },
-        "faces": detected_faces
+        "faces_detected": len(detected_faces),
+        "results": results,
     })
 
-@app.route("/api/faculty/<faculty_id>/sync", methods=["GET", "POST", "OPTIONS"])
-def sync_faculty_batch(faculty_id):
-    if request.method == "OPTIONS":
-        return make_response("", 200)
 
-    fac_code = faculty_id.upper()
-    faculty_students = [s for s in REGISTRY_DB if s["facultyId"] == fac_code]
+# ---------------------------------------------------------------------------
+# Student management
+# ---------------------------------------------------------------------------
 
+@app.route("/students", methods=["GET"])
+def list_students():
+    students = get_all_students()
+    return jsonify({"total": len(students), "students": students})
+
+
+@app.route("/students/<student_id>", methods=["GET"])
+def get_student_by_id(student_id):
+    student = get_student(student_id)
+    if not student:
+        return jsonify({"error": f"Student {student_id} not found"}), 404
+    student_safe = {k: v for k, v in student.items() if k != "embeddings"}
+    return jsonify(student_safe)
+
+
+@app.route("/students/<student_id>", methods=["DELETE"])
+def remove_student(student_id):
+    if not delete_student(student_id):
+        return jsonify({"error": f"Student {student_id} not found"}), 404
+    return jsonify({"message": f"Student {student_id} removed successfully."})
+
+
+# ---------------------------------------------------------------------------
+# Identify from video
+# ---------------------------------------------------------------------------
+
+@app.route("/identify/video", methods=["POST"])
+def identify_video():
+    """
+    Identify people in an uploaded video file.
+
+    Form fields:
+      - video        : video file (MP4, AVI, MOV, MKV)
+      - requested_by : optional, for audit log
+
+    Processing:
+      - Samples 1 frame per second
+      - Runs face detection + ArcFace on each sampled frame
+      - Aggregates matches across frames (voting)
+      - Returns a report of who appeared, when, with what confidence
+
+    Note: Processing time ~ 1 second per second of video on CPU.
+    A 2-minute video takes roughly 2 minutes to process.
+    This is an "upload and wait" endpoint — not real-time.
+    """
+    if "video" not in request.files:
+        return jsonify({"error": "No video uploaded"}), 400
+
+    video_file   = request.files["video"]
+    requested_by = request.form.get("requested_by", "unknown")
+    filename     = video_file.filename or "unknown"
+
+    # Validate file extension
+    allowed_extensions = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in allowed_extensions:
+        return jsonify({
+            "error": f"Unsupported video format '{ext}'. Allowed: {', '.join(allowed_extensions)}"
+        }), 400
+
+    # Check if any students are registered
+    candidates = get_all_embeddings()
+    if not candidates:
+        return jsonify({
+            "error": "No students registered yet. Please register students before processing video."
+        }), 400
+
+    # Save video to a temp file — OpenCV needs a file path, not a stream
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp_path = tmp.name
+        video_file.save(tmp_path)
+
+    try:
+        # Run the full video processing pipeline
+        report = process_video(
+            video_path=tmp_path,
+            candidates=candidates,
+            embedder_fn=get_embedding_from_image,
+            matcher_fn=find_top_matches,
+            preprocessor_fn=preprocess,
+        )
+
+        # Add formatted timestamps for readability
+        for person in report["people_identified"]:
+            person["first_seen"] = format_timestamp(person["first_seen_seconds"])
+            person["last_seen"]  = format_timestamp(person["last_seen_seconds"])
+
+        # Log the identification
+        log_identification(
+            image_filename=filename,
+            faces_detected=report["total_faces_detected"],
+            results=report["people_identified"],
+            requested_by=requested_by,
+        )
+
+        return jsonify(report)
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Video processing failed: {str(e)}"}), 500
+
+    finally:
+        # Always clean up the temp file
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Admin
+# ---------------------------------------------------------------------------
+
+@app.route("/logs", methods=["GET"])
+def audit_logs():
+    limit = int(request.args.get("limit", 50))
+    logs  = get_recent_logs(limit=limit)
+    return jsonify({"total_returned": len(logs), "logs": logs})
+
+
+@app.route("/stats", methods=["GET"])
+def stats():
+    logs = get_recent_logs(limit=1000)
     return jsonify({
-        "success": True,
-        "faculty_code": fac_code,
-        "api_endpoint": f"https://api.uop.ac.lk/v1/faculties/{fac_code}/batch-enrollment",
-        "synced_count": len(faculty_students),
-        "vector_indexed_count": len(faculty_students),
-        "students": faculty_students,
-        "timestamp": "2026-08-21T12:55:00Z"
+        "students_registered":   student_count(),
+        "total_identifications": sum(1 for l in logs if l["event"] == "identification"),
+        "total_registrations":   sum(1 for l in logs if l["event"] == "registration"),
     })
+
+
+
+# ---------------------------------------------------------------------------
+# Spring Boot adapter endpoint
+# ---------------------------------------------------------------------------
+
+@app.route("/api/recognize", methods=["POST"])
+def api_recognize():
+    """
+    Adapter endpoint for Spring Boot integration.
+
+    Spring Boot's AiClient sends:
+      - multipart/form-data with field "file" (not "image")
+      - expects back: { "matches": [{ "studentId": "...", "confidence": 0.87 }] }
+
+    This endpoint translates between Spring Boot's format and our
+    internal pipeline, without changing /identify at all.
+    """
+    # Spring Boot sends the image as "file" not "image"
+    image_file = request.files.get("file") or request.files.get("image")
+    if not image_file:
+        return jsonify({"error": "No image provided", "matches": []}), 400
+
+    image_bytes = np.frombuffer(image_file.read(), np.uint8)
+    img = cv2.imdecode(image_bytes, cv2.IMREAD_COLOR)
+
+    if img is None:
+        return jsonify({"error": "Could not decode image", "matches": []}), 400
+
+    # Preprocess
+    processed, reason = preprocess(img, skip_quality_check=False)
+    if processed is None:
+        return jsonify({"error": reason, "matches": []}), 422
+
+    # Detect + embed
+    detected_faces = get_embedding_from_image(processed)
+    if not detected_faces:
+        return jsonify({"matches": []}), 200
+
+    # Get candidates from mock DB (later: Spring Boot will pass these)
+    candidates = get_all_embeddings()
+    if not candidates:
+        return jsonify({"matches": []}), 200
+
+    # Match all faces, collect results
+    all_matches = []
+    for face in detected_faces:
+        top = find_top_matches(face["embedding"], candidates, top_k=3)
+        for match in top:
+            all_matches.append({
+                # Spring Boot expects camelCase keys
+                "studentId":  match["student_id"],
+                "confidence": match["similarity_score"],
+                # Extra info for debugging — Spring Boot ignores these
+                # thanks to @JsonIgnoreProperties(ignoreUnknown = true)
+                "studentName":         match.get("student_name", ""),
+                "department":          match.get("department", ""),
+                "confidenceLabel":     match.get("confidence_label", ""),
+                "matchedAugmentation": match.get("matched_augmentation", ""),
+            })
+
+    # Sort by confidence descending, deduplicate by studentId
+    seen = set()
+    deduped = []
+    for m in sorted(all_matches, key=lambda x: x["confidence"], reverse=True):
+        if m["studentId"] not in seen:
+            seen.add(m["studentId"])
+            deduped.append(m)
+
+    log_identification(
+        image_filename=image_file.filename or "api_recognize",
+        faces_detected=len(detected_faces),
+        results=[{"face_index": 0, "detection_confidence": 0, "top_matches": deduped}],
+        requested_by="spring-boot",
+    )
+
+    return jsonify({"matches": deduped})
+
+
+# ---------------------------------------------------------------------------
+# Error handlers
+# ---------------------------------------------------------------------------
+
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"error": "Endpoint not found"}), 404
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    return jsonify({"error": "Method not allowed"}), 405
+
+@app.errorhandler(500)
+def internal_error(e):
+    traceback.print_exc()
+    return jsonify({"error": "Internal server error"}), 500
+
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(debug=True)
