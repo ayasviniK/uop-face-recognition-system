@@ -1,12 +1,19 @@
 """
-Mock Database Service
----------------------
-Simulates what PostgreSQL will do in production.
-Stores student/staff records + embeddings in a local JSON file.
+Mock Database Service — DEV ONLY
+----------------------------------
+Used ONLY when Spring Boot / MySQL are not available locally.
+In production, Flask calls Spring Boot's /internal/* endpoints.
 
-Each person stores multiple embeddings (one per augmentation).
-During matching, all embeddings are passed to the matcher which
-picks the best score across all of them.
+What gets stored (mirrors the real DB schema):
+  - student_id  : the university registration number (e.g. A/16/AI/877)
+  - faculty     : parsed from reg number prefix or API response
+  - embeddings  : 6 augmented ArcFace embeddings (512 floats each)
+
+What does NOT get stored (fetched from university APIs after match):
+  - name, photo, email, year — Spring Boot fetches these using the
+    matched student_id after identification is complete
+
+Data file: python-ai-service/data/mock_db.json
 """
 
 import json
@@ -18,14 +25,14 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "mock_db.json")
 
 def _load() -> dict:
     if not os.path.exists(DB_PATH):
-        return {"staff": {}}
+        return {"students": {}}
     with open(DB_PATH, "r") as f:
         data = json.load(f)
-    # Handle both "staff" and legacy "students" key
-    if "staff" not in data and "students" in data:
-        data["staff"] = data.pop("students")
-    elif "staff" not in data:
-        data["staff"] = {}
+    # Handle old "staff" key from previous version
+    if "staff" in data and "students" not in data:
+        data["students"] = data.pop("staff")
+    elif "students" not in data:
+        data["students"] = {}
     return data
 
 
@@ -37,50 +44,48 @@ def _save(data: dict) -> None:
 
 def register_student(
     student_id: str,
-    full_name: str,
-    department: str,
-    year: int,
-    email: str,
+    faculty: str,
     embeddings: list[dict],
+    # Legacy params kept for backward compat with /register endpoint
+    full_name: str = "",
+    department: str = "",
+    year: int = 0,
+    email: str = "",
     image: str | None = None,
 ) -> dict:
     """
-    Save a student/staff record with augmented embeddings.
-    If the person already exists, updates their embeddings and photo timestamp.
+    Save a student's index + faculty + embeddings.
+    This is all we store — no personal info.
     """
     db  = _load()
     now = datetime.now(timezone.utc).isoformat()
-    existing = db["staff"].get(student_id)
+    existing = db["students"].get(student_id)
 
-    db["staff"][student_id] = {
-        "staff_id":         student_id,
-        "full_name":        full_name,
-        "department":       department,
-        "year":             year,
-        "email":            email,
-        "image":            image,
+    db["students"][student_id] = {
+        "student_id":       student_id,
+        "faculty":          faculty or department,
         "embeddings":       embeddings,
         "registered_at":    existing["registered_at"] if existing else now,
         "photo_updated_at": now,
     }
 
     _save(db)
-    return db["staff"][student_id]
+    return db["students"][student_id]
 
 
 def get_all_embeddings() -> list[dict]:
     """
-    Return all records with embeddings expanded — one entry per augmentation.
-    The matcher compares against all of them and picks the best score per person.
+    Return all embeddings as a flat list — one entry per augmentation.
+    matcher.py uses this to run cosine similarity.
     """
     db = _load()
     result = []
-    for person in db["staff"].values():
-        for emb_entry in person.get("embeddings", []):
+    for student in db["students"].values():
+        for emb_entry in student.get("embeddings", []):
             result.append({
-                "student_id":   person["staff_id"],
-                "student_name": person["full_name"],
-                "department":   person["department"],
+                "student_id":   student["student_id"],
+                "student_name": "",  # not stored — fetched from uni API after match
+                "department":   student.get("faculty", ""),
                 "augmentation": emb_entry["augmentation"],
                 "embedding":    emb_entry["embedding"],
             })
@@ -89,36 +94,33 @@ def get_all_embeddings() -> list[dict]:
 
 def get_student(student_id: str) -> dict | None:
     db = _load()
-    return db["staff"].get(student_id)
+    return db["students"].get(student_id)
 
 
 def get_all_students() -> list[dict]:
+    """List all students — returns index + faculty + embedding count only."""
     db = _load()
     result = []
-    for person in db["staff"].values():
+    for student in db["students"].values():
         result.append({
-            "student_id":       person["staff_id"],
-            "full_name":        person["full_name"],
-            "department":       person["department"],
-            "year":             person.get("year"),
-            "email":            person.get("email"),
-            "image":            person.get("image"),
-            "embeddings_count": len(person.get("embeddings", [])),
-            "registered_at":    person["registered_at"],
-            "photo_updated_at": person["photo_updated_at"],
+            "student_id":       student["student_id"],
+            "faculty":          student.get("faculty", ""),
+            "embeddings_count": len(student.get("embeddings", [])),
+            "registered_at":    student["registered_at"],
+            "photo_updated_at": student["photo_updated_at"],
         })
     return result
 
 
 def delete_student(student_id: str) -> bool:
     db = _load()
-    if student_id not in db["staff"]:
+    if student_id not in db["students"]:
         return False
-    del db["staff"][student_id]
+    del db["students"][student_id]
     _save(db)
     return True
 
 
 def student_count() -> int:
     db = _load()
-    return len(db["staff"])
+    return len(db["students"])
