@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project data and API tooling
+/Face/
+/postman/
+
+# personal notes
+NOTES.md
+internal_architecture.md
