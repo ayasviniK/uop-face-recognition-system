@@ -16,6 +16,8 @@ import { REGISTRY, MOCK_MATCHES, INCIDENTS_LOG } from "./data/students.js";
 import { DEMO_USERS, getUserFaculty, ROLES } from "./data/users.js";
 import LoginPage from "./components/LoginPage.jsx";
 import DevSwitcher from "./components/DevSwitcher.jsx";
+import StudentPhoto from "./components/StudentPhoto.jsx";
+import { parseStudentCSV, buildImageUrl } from "./utils/csvParser.js";
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 const C = {
@@ -293,9 +295,9 @@ function Topbar({ title, sub, currentUser, onLogout }) {
 // PAGE: IDENTIFY  (the core workflow)
 // ═══════════════════════════════════════════════════════════════════════════════
 const PIPELINE = [
-  { key:"detect",  label:"Face Detection",       tech:"RetinaFace",       icon:ScanFace,    color:C.cyan    },
-  { key:"embed",   label:"Embedding Extraction",  tech:"ArcFace (buffalo_l)", icon:Fingerprint, color:C.accent },
-  { key:"search",  label:"FAISS Index Search",   tech:"FAISS L2 Search",  icon:Database,    color:C.purple  },
+  { key:"detect",  label:"Face Detection",      tech:"AI Model",      icon:ScanFace,    color:C.cyan   },
+  { key:"embed",   label:"Feature Extraction",  tech:"Deep Learning", icon:Fingerprint, color:C.accent },
+  { key:"search",  label:"Identity Search",     tech:"Vector Search", icon:Database,    color:C.purple },
   { key:"results", label:"Match Results",         tech:"Threshold ≥ 80%",  icon:CheckCircle, color:C.success },
 ];
 
@@ -467,7 +469,7 @@ function MatchCard({ match, currentUser }) {
                     position: "absolute", inset: 0, display: "flex",
                     flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4
                   }}>
-                    <Avatar initials={s.initials} size={52}
+                    <StudentPhoto regno={s.id} initials={s.initials} size={52}
                       color={s.accentColor} flagged={s.flagged} />
                     <div style={{
                       fontSize: 8, color: C.muted, fontFamily: "'JetBrains Mono',monospace",
@@ -520,7 +522,7 @@ function MatchCard({ match, currentUser }) {
                     position: "absolute", inset: 0, display: "flex",
                     flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4
                   }}>
-                    <Avatar initials={s.initials} size={52}
+                    <StudentPhoto regno={s.id} initials={s.initials} size={52}
                       color={s.accentColor} flagged={s.flagged} />
                     <div style={{
                       fontSize: 8, color: C.muted, fontFamily: "'JetBrains Mono',monospace",
@@ -544,7 +546,7 @@ function MatchCard({ match, currentUser }) {
               border: `1px solid ${C.border}`, marginBottom: 12,
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                <Avatar initials={s.initials} size={34} color={s.accentColor} flagged={s.flagged} />
+                <StudentPhoto regno={s.id} initials={s.initials} size={34} color={s.accentColor} flagged={s.flagged} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{s.name}</div>
                   <div style={{ fontSize: 10, color: C.muted }}>{s.dept} · Year {s.year}</div>
@@ -577,7 +579,7 @@ function MatchCard({ match, currentUser }) {
                   <div key={c} style={{ fontSize: 10, color: C.sub, marginLeft: 16 }}>• {c}</div>
                 ))}
                 <div style={{ fontSize: 9, color: C.muted, marginTop: 4 }}>
-                  ArcFace identity embedding is robust to these surface changes
+                  AI model is robust to these surface changes
                 </div>
               </div>
             )}
@@ -719,18 +721,9 @@ function IdentifyPage({ currentUser }) {
           </div>
           <div style={{fontSize:12,color:C.sub,maxWidth:520}}>
             Upload a photo from the incident (CCTV screenshot or mobile). The system will detect
-            all faces, extract ArcFace embeddings, and match each face to the student registry —
+            all faces, extract identity features, and match each face to the student registry —
             even if the student has since changed their appearance.
           </div>
-        </div>
-        <div style={{display:"flex",gap:10,flexShrink:0}}>
-          {["RetinaFace","ArcFace","FAISS"].map(t=>(
-            <div key={t} style={{
-              padding:"5px 10px",borderRadius:7,
-              background:`${C.accent}15`,border:`1px solid ${C.accent}30`,
-              fontSize:10,fontWeight:700,color:C.accent,letterSpacing:"0.06em",
-            }}>{t}</div>
-          ))}
         </div>
       </div>
 
@@ -879,9 +872,9 @@ function IdentifyPage({ currentUser }) {
             </div>
             {[
               ["1","Upload Incident Photo","Any image from CCTV or mobile showing the fight/altercation"],
-              ["2","Face Detection","RetinaFace locates and crops every face in the image"],
-              ["3","Embedding Extraction","ArcFace extracts a 512-dim identity vector per face — unaffected by hairstyle, beard, or minor appearance changes"],
-              ["4","Registry Search","FAISS performs L2 similarity search across all enrolled student embeddings"],
+              ["2","Face Detection","AI model locates and crops every face in the image"],
+              ["3","Feature Extraction","Deep learning extracts an identity vector per face — unaffected by hairstyle, beard, or appearance changes"],
+              ["4","Identity Search","Vector similarity search across all enrolled student embeddings"],
               ["5","Match & Report","Each face is matched (or flagged unmatched) with a confidence score"],
             ].map(([n,t,d])=>(
               <div key={n} style={{display:"flex",gap:10,marginBottom:12}}>
@@ -908,7 +901,6 @@ function IdentifyPage({ currentUser }) {
               ["Avg inference","~340ms / image",C.cyan],
               ["Match threshold","≥ 80% confidence",C.success],
               ["False positive rate","< 1.2%",C.warning],
-              ["Model","ArcFace buffalo_l",C.purple],
             ].map(([k,v,col])=>(
               <div key={k} style={{display:"flex",justifyContent:"space-between",
                 padding:"5px 0",borderBottom:`1px solid ${C.border}`,fontSize:11}}>
@@ -946,7 +938,7 @@ function AdminDashboard({ setPage, currentUser }) {
             </span>
           </div>
           <div style={{ fontSize: 12, color: C.sub, maxWidth: 620 }}>
-            Global surveillance intelligence across all 9 UOP faculties. Monitor OpenCV AI engine health, FAISS vector index database, campus CCTV node networks, and cross-faculty incident logs.
+            Global surveillance intelligence across all 9 UOP faculties. Monitor AI engine health, vector index database, campus CCTV node networks, and cross-faculty incident logs.
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
@@ -962,7 +954,7 @@ function AdminDashboard({ setPage, currentUser }) {
       {/* Central System Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
         <StatCard icon={Users} label="Total Campus Students" value="847" trend={12} color={C.accent} sub="All 9 Faculties Registered" />
-        <StatCard icon={Cpu} label="AI Vector Index (FAISS)" value="847" trend={100} color={C.cyan} sub="ArcFace 512-dim Vectors" />
+        <StatCard icon={Cpu} label="AI Identity Index" value="847" trend={100} color={C.cyan} sub="Biometric Vectors" />
         <StatCard icon={AlertTriangle} label="Global Security Incidents" value="5" trend={25} color={C.danger} sub="Cross-Faculty Logs" />
         <StatCard icon={CheckCircle} label="OpenCV AI Engine" value="ONLINE" trend={100} color={C.success} sub="Port 5000 Active" />
       </div>
@@ -985,7 +977,7 @@ function AdminDashboard({ setPage, currentUser }) {
               Run Central Face Identification →
             </div>
             <div style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>
-              Upload incident screenshot or CCTV photo to search global FAISS student registry
+              Upload incident screenshot or CCTV photo to search the student registry
             </div>
           </div>
         </div>
@@ -1062,7 +1054,7 @@ function AdminDashboard({ setPage, currentUser }) {
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 14 }}>Global Recent Incidents</div>
           {INCIDENTS_LOG.slice(0, 4).map(inc => (
             <div key={inc.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.border}` }}>
-              <Avatar initials={inc.student.split(" ").map(w => w[0]).join("").slice(0, 2) || "?"} size={32} color={inc.conf > 0 ? C.accent : C.muted} />
+              <StudentPhoto regno={inc.studentId} initials={inc.student.split(" ").map(w => w[0]).join("").slice(0, 2) || "?"} size={32} color={inc.conf > 0 ? C.accent : C.muted} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{inc.student}</div>
                 <div style={{ fontSize: 10, color: C.muted }}>{inc.camera} · {inc.facultyId} Scope</div>
@@ -1125,7 +1117,7 @@ function FacultyDashboard({ setPage, currentUser }) {
         <StatCard icon={Users} label={`${activeFaculty.code} Enrolled Students`} value={facultyStudents.length} trend={8} color={activeFaculty.color || C.accent} sub="Faculty Scope Registry" />
         <StatCard icon={AlertTriangle} label={`${activeFaculty.code} Open Incidents`} value={facultyIncidents.length || "1"} trend={0} color={C.warning} sub="Under Review" />
         <StatCard icon={ScanFace} label="Faculty Gate Cameras" value="3" trend={100} color={C.success} sub={`${activeFaculty.code} Gate A & B`} />
-        <StatCard icon={Cpu} label="Recognition Accuracy" value="94.2%" trend={5} color={C.purple} sub="ArcFace Embeddings" />
+        <StatCard icon={Cpu} label="Recognition Accuracy" value="94.2%" trend={5} color={C.purple} sub="AI Recognition" />
       </div>
 
       {/* Quick Action for Faculty */}
@@ -1200,7 +1192,7 @@ function FacultyDashboard({ setPage, currentUser }) {
                   border: `1px solid ${C.border}`
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <Avatar initials={s.initials} size={38} color={s.accentColor || activeFaculty.color} flagged={s.flagged} />
+                    <StudentPhoto regno={s.id} initials={s.initials} size={38} color={s.accentColor || activeFaculty.color} flagged={s.flagged} />
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{s.name}</div>
                       <div style={{ fontSize: 11, color: C.sub }}>
@@ -1233,7 +1225,7 @@ function FacultyDashboard({ setPage, currentUser }) {
           {facultyIncidents.length > 0 ? (
             facultyIncidents.map(inc => (
               <div key={inc.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
-                <Avatar initials={inc.student.split(" ").map(w => w[0]).join("").slice(0, 2) || "?"} size={34} color={inc.conf > 0 ? activeFaculty.color : C.muted} />
+                <StudentPhoto regno={inc.studentId} initials={inc.student.split(" ").map(w => w[0]).join("").slice(0, 2) || "?"} size={34} color={inc.conf > 0 ? activeFaculty.color : C.muted} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{inc.student}</div>
                   <div style={{ fontSize: 10, color: C.sub }}>{inc.camera} · {inc.time.split(" ")[1]}</div>
@@ -1267,8 +1259,8 @@ function DashboardPage({ setPage, currentUser }) {
 const SYNC_STEPS = [
   { key: "api", label: "Querying Faculty MIS API", tech: "GET /api/v1/faculties/{code}/students" },
   { key: "validate", label: "Validating Student Records & Photos", tech: "Schema & Image Quality Check" },
-  { key: "embedding", label: "Extracting 512-dim ArcFace Embeddings", tech: "Python OpenCV AI Backend" },
-  { key: "indexing", label: "Indexing Vectors to FAISS Database", tech: "L2 Vector Index Registered" }
+  { key:"embedding", label:"Extracting Identity Features",  tech:"Deep Learning AI Backend" },
+  { key:"indexing",  label:"Indexing to Identity Database", tech:"Vector Index Registered"  },
 ];
 
 function FacultySyncPage({ currentUser, students, setStudents }) {
@@ -1279,12 +1271,44 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
   const [currentStep, setCurrentStep] = useState(-1);
   const [lastSyncTime, setLastSyncTime] = useState("2026-08-21 11:30 AM");
   const [syncedCount, setSyncedCount] = useState(0);
+  const [search, setSearch] = useState("");
+
+  const [csvStudents, setCsvStudents] = useState([]);
+  const [csvFileName, setCsvFileName] = useState("");
+  const [csvError, setCsvError] = useState("");
+  const [photoStatus, setPhotoStatus] = useState({});
+  const csvFileRef = useRef(null);
+
+  const handleCSVUpload = (file) => {
+    if (!file) return;
+    setCsvError("");
+    setCsvFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = parseStudentCSV(e.target.result);
+        if (parsed.length === 0) {
+          setCsvError("No valid students found. Check that your CSV has headers: regno, name, faculty");
+          return;
+        }
+        setCsvStudents(parsed);
+        parsed.forEach(student => {
+          const img = new Image();
+          img.src = buildImageUrl(student.id);
+          img.onload = () => setPhotoStatus(p => ({ ...p, [student.id]: "ok" }));
+          img.onerror = () => setPhotoStatus(p => ({ ...p, [student.id]: "missing" }));
+        });
+      } catch (err) {
+        setCsvError("Failed to parse CSV: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const handleSyncBatch = async () => {
     setSyncStage("syncing");
     setCurrentStep(0);
 
-    // Step progression animation
     SYNC_STEPS.forEach((_, i) => {
       setTimeout(() => {
         setCurrentStep(i + 1);
@@ -1307,6 +1331,14 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
     setTimeout(() => {
       setSyncStage("done");
       setLastSyncTime(new Date().toLocaleString());
+      if (csvStudents.length > 0) {
+        setSyncedCount(csvStudents.length);
+        setStudents(prev => {
+          const existingIds = new Set(prev.map(s => s.id));
+          const newEntries = csvStudents.filter(s => !existingIds.has(s.id));
+          return [...csvStudents, ...newEntries];
+        });
+      }
     }, 4800);
   };
 
@@ -1314,6 +1346,11 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
     if (isGlobalAdmin) return true;
     return s.facultyId === currentUser?.facultyId;
   });
+
+  const filtered = scopedStudents.filter(s =>
+    s.name.toLowerCase().includes(search.toLowerCase()) ||
+    s.id.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div style={{ padding: 26, display: "flex", flexDirection: "column", gap: 20 }}>
@@ -1332,7 +1369,7 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
             </span>
           </div>
           <div style={{ fontSize: 12, color: C.sub, maxWidth: 650 }}>
-            Automated Faculty API Integration: Student enrollment is managed directly by {isGlobalAdmin ? "each faculty MIS system" : activeFaculty.name}. This module queries the Faculty MIS API to retrieve new student batches, generate 512-dim ArcFace identity embeddings, and index vectors for biometric identification.
+            Automated Faculty API Integration: Student enrollment is managed directly by {isGlobalAdmin ? "each faculty MIS system" : activeFaculty.name}. This module queries the Faculty MIS API to retrieve new student batches, generate biometric identity features, and index them for face identification.
           </div>
         </div>
 
@@ -1351,13 +1388,13 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 20, alignItems: "start" }}>
-        {/* Left Panel: Batch Sync Trigger */}
+        {/* Left Panel: CSV Upload & Batch Sync Control */}
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22, display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>
             Faculty Batch Sync Control
           </div>
           <div style={{ fontSize: 11, color: C.sub, lineHeight: 1.5 }}>
-            When a new batch of students is registered at {activeFaculty.name}, run the sync process below to pull student records and generate AI biometric embeddings.
+            Upload the CSV file provided by UOP to parse student records, probe live student photos from stud.pdn.ac.lk, and generate AI biometric vector embeddings.
           </div>
 
           <div style={{
@@ -1374,22 +1411,91 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
               <span style={{ color: C.muted }}>AI Model:</span>
-              <span style={{ fontWeight: 700, color: C.purple }}>ArcFace 512-dim</span>
+              <span style={{ fontWeight: 700, color: C.purple }}>Deep Learning Model</span>
             </div>
           </div>
 
-          <button
-            onClick={handleSyncBatch}
-            disabled={syncStage === "syncing"}
-            style={{
-              padding: "13px", borderRadius: 10, border: "none", cursor: syncStage === "syncing" ? "default" : "pointer",
-              fontWeight: 800, fontSize: 13, color: "#fff",
-              background: syncStage === "syncing" ? C.border : `linear-gradient(135deg, ${activeFaculty.color || C.accent}, ${C.accentD})`,
-              boxShadow: syncStage === "syncing" ? "none" : `0 4px 14px ${activeFaculty.color || C.accent}30`,
-              transition: "all 0.2s"
-            }}>
-            {syncStage === "syncing" ? "⚡ Fetching Faculty API Batch…" : "⚡ Sync Batch from Faculty API"}
-          </button>
+          {/* Drag & Drop CSV Upload */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div onClick={() => csvFileRef.current?.click()}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); handleCSVUpload(e.dataTransfer.files[0]); }}
+              style={{
+                border: `2px dashed ${csvStudents.length ? C.success : C.border}`,
+                borderRadius: 10, padding: "20px 14px", textAlign: "center", cursor: "pointer",
+                background: C.raised, transition: "border-color 0.2s"
+              }}>
+              <input ref={csvFileRef} type="file" accept=".csv" style={{ display: "none" }}
+                onChange={e => handleCSVUpload(e.target.files[0])} />
+              {csvStudents.length > 0 ? (
+                <div style={{ fontSize: 13, color: C.success, fontWeight: 700 }}>
+                  ✓ {csvFileName} — {csvStudents.length} students loaded
+                </div>
+              ) : (
+                <>
+                  <Upload size={22} color={activeFaculty.color || C.accent} style={{ margin: "0 auto 6px" }} />
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 2 }}>
+                    Upload UOP Student CSV
+                  </div>
+                  <div style={{ fontSize: 11, color: C.muted }}>
+                    Drag &amp; drop or click to select UOP CSV
+                  </div>
+                </>
+              )}
+            </div>
+
+            {csvError && (
+              <div style={{ fontSize: 12, color: C.danger, padding: "8px 12px", background: `${C.danger}15`, borderRadius: 8, border: `1px solid ${C.danger}40` }}>
+                ⚠ {csvError}
+              </div>
+            )}
+
+            {/* Preview table with live photos */}
+            {csvStudents.length > 0 && (
+              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 12, fontWeight: 700, color: C.text }}>
+                  Preview — {csvStudents.length} students from CSV
+                  <span style={{ marginLeft: 8, fontSize: 10, color: C.muted, fontWeight: 400 }}>
+                    ({Object.values(photoStatus).filter(v => v === 'ok').length} photos confirmed)
+                  </span>
+                </div>
+                <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                  {csvStudents.slice(0, 50).map(student => (
+                    <div key={student.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: `1px solid ${C.border}` }}>
+                      <StudentPhoto regno={student.id} initials={student.initials} size={32} color={student.accentColor} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{student.name}</div>
+                        <div style={{ fontSize: 10, color: C.muted }}>{student.dept} · Year {student.year}</div>
+                      </div>
+                      <code style={{ fontSize: 10, color: C.accent, fontFamily: "'JetBrains Mono',monospace" }}>{student.id}</code>
+                      <div title={photoStatus[student.id] === 'ok' ? 'Photo found' : photoStatus[student.id] === 'missing' ? 'Photo missing' : 'Checking photo...'}
+                        style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: photoStatus[student.id] === 'ok' ? C.success : photoStatus[student.id] === 'missing' ? C.danger : C.muted }} />
+                    </div>
+                  ))}
+                  {csvStudents.length > 50 && (
+                    <div style={{ padding: "8px 14px", fontSize: 11, color: C.muted }}>
+                      … and {csvStudents.length - 50} more
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={handleSyncBatch}
+              disabled={syncStage === "syncing" || csvStudents.length === 0}
+              style={{
+                padding: "13px", borderRadius: 10, border: "none",
+                fontWeight: 800, fontSize: 13, color: "#fff",
+                cursor: csvStudents.length === 0 ? "not-allowed" : syncStage === "syncing" ? "default" : "pointer",
+                background: csvStudents.length === 0 ? C.border : `linear-gradient(135deg, ${activeFaculty.color || C.accent}, ${C.accentD})`,
+                opacity: csvStudents.length === 0 ? 0.6 : 1,
+                boxShadow: csvStudents.length === 0 ? "none" : `0 4px 14px ${activeFaculty.color || C.accent}30`,
+                transition: "all 0.2s"
+              }}>
+              {syncStage === "syncing" ? "⚡ Processing batch & indexing…" : csvStudents.length === 0 ? "Upload CSV to Enable Sync" : `⚡ Sync ${csvStudents.length} Students → Identity Index`}
+            </button>
+          </div>
 
           {/* Sync Progress Pipeline */}
           {syncStage !== "idle" && (
@@ -1429,7 +1535,7 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
                   border: `1px solid ${C.success}`, fontSize: 12, fontWeight: 700,
                   color: C.success, textAlign: "center"
                 }}>
-                  ✓ Batch Synced: {syncedCount || scopedStudents.length} Students Indexed into FAISS Vector DB
+                  ✓ Batch Synced: {syncedCount || scopedStudents.length} Students Indexed into Identity Database
                 </div>
               )}
             </div>
@@ -1474,7 +1580,7 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
                   <tr key={s.id} style={{ borderBottom: `1px solid ${C.border}` }}>
                     <td style={{ padding: "11px 12px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                        <Avatar initials={s.initials} size={30} color={sFac.color || s.accentColor} flagged={s.flagged} />
+                        <StudentPhoto regno={s.id} initials={s.initials} size={30} color={sFac.color || s.accentColor} flagged={s.flagged} />
                         <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{s.name}</span>
                       </div>
                     </td>
@@ -1603,7 +1709,7 @@ function EvidencePage({ currentUser }) {
                   }}>{inc.id}</td>
                   <td style={{ padding: "12px 15px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <Avatar initials={inc.student.split(" ").map(w => w[0]).join("").slice(0, 2) || "?"}
+                      <StudentPhoto regno={inc.studentId} initials={inc.student.split(" ").map(w => w[0]).join("").slice(0, 2) || "?"}
                         size={28} color={inc.conf ? C.accent : C.muted} />
                       <span style={{ fontSize: 13, color: C.text }}>{inc.student}</span>
                     </div>
@@ -1670,7 +1776,7 @@ function EvidencePage({ currentUser }) {
                 display:"flex",alignItems:"center",justifyContent:"center",
                 position:"relative",
               }}>
-                <Avatar initials={sel.student.split(" ").map(w=>w[0]).join("").slice(0,2)||"?"}
+                <StudentPhoto regno={sel.studentId} initials={sel.student.split(" ").map(w=>w[0]).join("").slice(0,2)||"?"}
                   size={44} color={C.accent}/>
                 {sel.conf>0&&(
                   <div style={{position:"absolute",bottom:-17,left:0,right:0,
@@ -1757,8 +1863,6 @@ function ReportsPage() {
             background:`${C.accent}10`,border:`1px solid ${C.accent}25`,
           }}>
             {[
-              ["Model","ArcFace buffalo_l",C.accent],
-              ["FAISS index","847 vectors",C.cyan],
               ["False +ve","< 1.2%",C.success],
               ["Avg confidence","92.4%",C.purple],
             ].map(([k,v,col])=>(
@@ -1781,7 +1885,7 @@ function ReportsPage() {
 const META = {
   dashboard: { title:"Dashboard",            sub:"Real-time campus security overview" },
   identify:  { title:"Incident Identification", sub:"Upload fight image → detect faces → match to student registry" },
-  enroll:    { title:"Faculty API Batch Sync & Indexing", sub:"Fetch student batches from Faculty MIS API & generate ArcFace embeddings" },
+  enroll:    { title:"Faculty API Batch Sync & Indexing", sub:"Fetch student batches from Faculty MIS API & generate biometric identity features" },
   evidence:  { title:"Evidence Dashboard",   sub:"Review confirmed and pending incident records" },
   reports:   { title:"Reports & Analytics",  sub:"System performance and incident statistics" },
 };
@@ -1828,7 +1932,7 @@ export default function App() {
           <div style={{flex:1,overflowY:"auto"}}>
             {page==="dashboard" && <DashboardPage setPage={setPage} currentUser={currentUser}/>}
             {page==="identify"  && <IdentifyPage currentUser={currentUser}/>}
-            {page==="enroll"    && <EnrollPage currentUser={currentUser} students={students} setStudents={setStudents}/>}
+            {page==="enroll"    && <FacultySyncPage currentUser={currentUser} students={students} setStudents={setStudents}/>}
             {page==="evidence"  && (currentUser?.role === ROLES.ADMIN ? <EvidencePage currentUser={currentUser}/> : <DashboardPage setPage={setPage} currentUser={currentUser}/>)}
             {page==="reports"   && (currentUser?.role === ROLES.ADMIN ? <ReportsPage currentUser={currentUser}/> : <DashboardPage setPage={setPage} currentUser={currentUser}/>)}
           </div>
