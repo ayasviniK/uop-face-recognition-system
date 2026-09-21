@@ -78,8 +78,8 @@ CSV_REG_NO_COLUMN = "Reg_No"
 
 # Scheduled sync dates (month, day) — 3 times per year
 SYNC_SCHEDULE = [
-    (1,  1),   # January 1
-    (6,  1),   # June 1
+    (4,  1),   # April 1
+    (8,  1),   # August 1
     (12, 31),  # December 31
 ]
 
