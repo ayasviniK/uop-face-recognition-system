@@ -219,3 +219,6 @@ __marimo__/
 
 # HTTP test files
 test.http
+
+# Face image dataset
+Face/
