@@ -222,3 +222,7 @@ test.http
 
 # Face image dataset
 Face/
+
+# Local project notes and architecture documentation
+NOTES.md
+internal_architecture.md
