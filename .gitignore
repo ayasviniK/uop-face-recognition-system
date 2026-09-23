@@ -219,3 +219,6 @@ __marimo__/
 
 # HTTP test files
 test.http
+Face/
+NOTES.md
+internal_architecture.md
