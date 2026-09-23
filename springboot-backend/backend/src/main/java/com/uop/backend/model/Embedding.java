@@ -53,6 +53,22 @@ public class Embedding {
     @Column(name = "embedding_rotated_minus", columnDefinition = "json", nullable = false)
     private List<Double> embeddingRotatedMinus;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "embedding_left_1", columnDefinition = "json")
+    private List<Double> embeddingLeft1;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "embedding_left_2", columnDefinition = "json")
+    private List<Double> embeddingLeft2;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "embedding_right_1", columnDefinition = "json")
+    private List<Double> embeddingRight1;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "embedding_right_2", columnDefinition = "json")
+    private List<Double> embeddingRight2;
+
     @Column(name = "generated_at")
     private LocalDateTime generatedAt;
 

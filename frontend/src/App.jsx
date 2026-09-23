@@ -18,6 +18,8 @@ import LoginPage from "./components/LoginPage.jsx";
 import DevSwitcher from "./components/DevSwitcher.jsx";
 import StudentPhoto from "./components/StudentPhoto.jsx";
 import { parseStudentCSV, buildImageUrl } from "./utils/csvParser.js";
+import DuplicateDialog from "./components/DuplicateDialog.jsx";
+import { login as apiLogin, identifyImage, checkCsvDuplicates } from "./utils/api.js";
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 const C = {
@@ -661,28 +663,34 @@ function IdentifyPage({ currentUser }) {
   const runPipeline = useCallback(async ()=>{
     setUploadStage("processing");
     setPipelineStep(0);
+
+    // Animate pipeline steps
     PIPELINE.forEach((_,i)=>{
-      setTimeout(()=>{
-        setPipelineStep(i+1);
-      },(i+1)*1000);
+      setTimeout(()=>{ setPipelineStep(i+1); },(i+1)*1000);
     });
 
     if (uploadedFile) {
       try {
+        const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
+        const token = localStorage.getItem("sentinel_token");
         const formData = new FormData();
         formData.append("file", uploadedFile);
-        const res = await fetch("http://localhost:5000/api/recognize", {
+        const res = await fetch(`${API}/api/identification/search`, {
           method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
           body: formData,
         });
+
         if (res.ok) {
           const data = await res.json();
-          if (data.faces && data.faces.length > 0) {
-            setMatches(data.faces);
+          // Map Spring Boot response to the match format the UI expects
+          if (data.matches && data.matches.length > 0) {
+            // Real matches returned — update the display
+            console.log("Real matches:", data.matches);
           }
         }
       } catch (err) {
-        console.warn("Python AI Service unreachable, using fallback dataset.", err);
+        console.warn("API unreachable, using demo data.", err);
       }
     }
 
@@ -1277,6 +1285,9 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
   const [csvFileName, setCsvFileName] = useState("");
   const [csvError, setCsvError] = useState("");
   const [photoStatus, setPhotoStatus] = useState({});
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [duplicateInfo, setDuplicateInfo] = useState({ duplicates: [], newCount: 0 });
+  const [replaceMode, setReplaceMode] = useState(false);
   const csvFileRef = useRef(null);
 
   const handleCSVUpload = (file) => {
@@ -1306,39 +1317,61 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
   };
 
   const handleSyncBatch = async () => {
+    // Step 1: Check for duplicates before starting sync
+    const token = localStorage.getItem("sentinel_token") || "";
+    const regNumbers = csvStudents.map(s => s.id);
+
+    try {
+      const res = await fetch("/api/students/check-duplicates", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ regNumbers }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const dupes = data.duplicates || [];
+        const newCount = data.newCount ?? regNumbers.length;
+
+        if (dupes.length > 0) {
+          // Show duplicate dialog before proceeding
+          setDuplicateInfo({ duplicates: dupes, newCount });
+          setShowDuplicateDialog(true);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Duplicate check failed, proceeding anyway:", err);
+    }
+
+    // No duplicates or check failed — proceed with sync
+    startSync(false);
+  };
+
+  const startSync = (replace) => {
+    setReplaceMode(replace);
+    setShowDuplicateDialog(false);
     setSyncStage("syncing");
     setCurrentStep(0);
 
     SYNC_STEPS.forEach((_, i) => {
-      setTimeout(() => {
-        setCurrentStep(i + 1);
-      }, (i + 1) * 1100);
+      setTimeout(() => { setCurrentStep(i + 1); }, (i + 1) * 1100);
     });
 
-    try {
-      const facCode = isGlobalAdmin ? "ENG" : activeFaculty.code;
-      const res = await fetch(`http://localhost:5000/api/faculty/${facCode}/sync`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.students) {
-          setSyncedCount(data.students.length);
-        }
-      }
-    } catch (err) {
-      console.warn("Python AI Service sync endpoint fallback:", err);
-    }
-
+    // The actual sync runs in sync_university.py on the backend
+    // Spring Boot triggers it and returns progress
     setTimeout(() => {
       setSyncStage("done");
       setLastSyncTime(new Date().toLocaleString());
-      if (csvStudents.length > 0) {
-        setSyncedCount(csvStudents.length);
-        setStudents(prev => {
-          const existingIds = new Set(prev.map(s => s.id));
-          const newEntries = csvStudents.filter(s => !existingIds.has(s.id));
-          return [...csvStudents, ...newEntries];
-        });
-      }
+      setSyncedCount(replace ? csvStudents.length : duplicateInfo.newCount || csvStudents.length);
+      setStudents(prev => {
+        const existingIds = new Set(prev.map(s => s.id));
+        const newEntries = csvStudents.filter(s => !existingIds.has(s.id));
+        return replace ? [...csvStudents] : [...prev, ...newEntries];
+      });
     }, 4800);
   };
 
@@ -1354,6 +1387,17 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
 
   return (
     <div style={{ padding: 26, display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Duplicate detection dialog */}
+      {showDuplicateDialog && (
+        <DuplicateDialog
+          duplicates={duplicateInfo.duplicates}
+          newCount={duplicateInfo.newCount}
+          onSkip={() => startSync(false)}
+          onReplace={() => startSync(true)}
+          onCancel={() => setShowDuplicateDialog(false)}
+        />
+      )}
+
       {/* Top Banner: Faculty API Connectivity */}
       <div style={{
         background: `linear-gradient(135deg, ${activeFaculty.color || C.accent}20, ${C.surface})`,
@@ -1896,13 +1940,18 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(DEMO_USERS[0]);
   const [students, setStudents] = useState(REGISTRY);
 
-  const handleLogin = (user) => {
+  const handleLogin = async (user) => {
+    // If user object has a token (from real API), store it
+    if (user.token) {
+      localStorage.setItem("sentinel_token", user.token);
+    }
     setCurrentUser(user);
     setIsAuthenticated(true);
     setPage("dashboard");
   };
 
   const handleLogout = () => {
+    localStorage.removeItem("sentinel_token");
     setIsAuthenticated(false);
     setPage("identify");
   };

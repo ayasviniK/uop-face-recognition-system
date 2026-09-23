@@ -20,4 +20,8 @@ public class EmbeddingResponse {
     private List<Double> embeddingDarker;
     private List<Double> embeddingRotatedPlus;
     private List<Double> embeddingRotatedMinus;
+    private List<Double> embeddingLeft1;
+    private List<Double> embeddingLeft2;
+    private List<Double> embeddingRight1;
+    private List<Double> embeddingRight2;
 }

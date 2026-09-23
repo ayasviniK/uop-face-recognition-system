@@ -1,7 +1,7 @@
 """
 Mock Database Service
 ---------------------
-Simulates what PostgreSQL will do in production.
+Simulates what MySQL will do in production.
 Stores student/staff records + embeddings in a local JSON file.
 
 Each person stores multiple embeddings (one per augmentation).

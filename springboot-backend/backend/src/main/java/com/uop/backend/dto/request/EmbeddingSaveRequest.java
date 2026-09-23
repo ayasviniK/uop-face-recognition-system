@@ -66,4 +66,20 @@ public class EmbeddingSaveRequest {
     @JsonProperty("embeddingRotatedMinus")
     @JsonAlias({"rotatedMinus10Embedding", "embeddingRotatedMinus10", "embedding_rotated_minus", "rotated_minus_10"})
     private List<Double> embeddingRotatedMinus;
+
+    @JsonProperty("embeddingLeft1")
+    @JsonAlias({"embedding_left_1", "left1Embedding", "left_1_embedding"})
+    private List<Double> embeddingLeft1;
+
+    @JsonProperty("embeddingLeft2")
+    @JsonAlias({"embedding_left_2", "left2Embedding", "left_2_embedding"})
+    private List<Double> embeddingLeft2;
+
+    @JsonProperty("embeddingRight1")
+    @JsonAlias({"embedding_right_1", "right1Embedding", "right_1_embedding"})
+    private List<Double> embeddingRight1;
+
+    @JsonProperty("embeddingRight2")
+    @JsonAlias({"embedding_right_2", "right2Embedding", "right_2_embedding"})
+    private List<Double> embeddingRight2;
 }

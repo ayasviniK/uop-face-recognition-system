@@ -255,4 +255,123 @@ public class InternalStudentControllerTest {
                 .andExpect(jsonPath("$.studentsAdded").value(45))
                 .andExpect(jsonPath("$.status").value("success"));
     }
+
+    @Test
+    public void postEmbeddings_withAll10Embeddings_savesSuccessfully() throws Exception {
+        List<Double> vector = createVector(512);
+        EmbeddingSaveRequest request = EmbeddingSaveRequest.builder()
+                .studentId("E/18/001")
+                .faculty("Engineering")
+                .tier(1)
+                .embeddingOriginal(vector)
+                .embeddingFlipped(vector)
+                .embeddingBrighter(vector)
+                .embeddingDarker(vector)
+                .embeddingRotatedPlus(vector)
+                .embeddingRotatedMinus(vector)
+                .embeddingLeft1(vector)
+                .embeddingLeft2(vector)
+                .embeddingRight1(vector)
+                .embeddingRight2(vector)
+                .build();
+
+        when(internalStudentService.saveEmbeddings(any()))
+                .thenReturn(Map.of("message", "Embeddings saved", "studentId", "E/18/001"));
+
+        mockMvc.perform(post("/internal/students/embeddings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Embeddings saved"))
+                .andExpect(jsonPath("$.studentId").value("E/18/001"));
+    }
+
+    @Test
+    public void postEmbeddings_withOnlyLeftEmbeddings_savesSuccessfully() throws Exception {
+        List<Double> vector = createVector(512);
+        EmbeddingSaveRequest request = EmbeddingSaveRequest.builder()
+                .studentId("E/18/001")
+                .tier(1)
+                .embeddingOriginal(vector)
+                .embeddingFlipped(vector)
+                .embeddingBrighter(vector)
+                .embeddingDarker(vector)
+                .embeddingRotatedPlus(vector)
+                .embeddingRotatedMinus(vector)
+                .embeddingLeft1(vector)
+                .embeddingLeft2(vector)
+                .build();
+
+        when(internalStudentService.saveEmbeddings(any()))
+                .thenReturn(Map.of("message", "Embeddings saved", "studentId", "E/18/001"));
+
+        mockMvc.perform(post("/internal/students/embeddings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Embeddings saved"))
+                .andExpect(jsonPath("$.studentId").value("E/18/001"));
+    }
+
+    @Test
+    public void postEmbeddings_withSnakeCaseAliases_savesSuccessfully() throws Exception {
+        List<Double> vector = createVector(512);
+        String vectorJson = objectMapper.writeValueAsString(vector);
+
+        String jsonPayload = "{"
+                + "\"studentId\":\"E/18/001\","
+                + "\"tier\":1,"
+                + "\"embedding_original\":" + vectorJson + ","
+                + "\"embedding_flipped\":" + vectorJson + ","
+                + "\"embedding_brighter\":" + vectorJson + ","
+                + "\"embedding_darker\":" + vectorJson + ","
+                + "\"embedding_rotated_plus\":" + vectorJson + ","
+                + "\"embedding_rotated_minus\":" + vectorJson + ","
+                + "\"embedding_left_1\":" + vectorJson + ","
+                + "\"embedding_left_2\":" + vectorJson + ","
+                + "\"embedding_right_1\":" + vectorJson + ","
+                + "\"embedding_right_2\":" + vectorJson
+                + "}";
+
+        when(internalStudentService.saveEmbeddings(any()))
+                .thenReturn(Map.of("message", "Embeddings saved", "studentId", "E/18/001"));
+
+        mockMvc.perform(post("/internal/students/embeddings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonPayload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Embeddings saved"))
+                .andExpect(jsonPath("$.studentId").value("E/18/001"));
+    }
+
+    @Test
+    public void getEmbeddings_returnsAll10EmbeddingsWhenPresent() throws Exception {
+        List<Double> vector = createVector(512);
+        EmbeddingResponse er = EmbeddingResponse.builder()
+                .studentId("E/18/001")
+                .tier(1)
+                .embeddingOriginal(vector)
+                .embeddingFlipped(vector)
+                .embeddingBrighter(vector)
+                .embeddingDarker(vector)
+                .embeddingRotatedPlus(vector)
+                .embeddingRotatedMinus(vector)
+                .embeddingLeft1(vector)
+                .embeddingLeft2(vector)
+                .embeddingRight1(vector)
+                .embeddingRight2(vector)
+                .build();
+
+        when(internalStudentService.getEmbeddings(null, null)).thenReturn(List.of(er));
+
+        mockMvc.perform(get("/internal/students/embeddings"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].studentId").value("E/18/001"))
+                .andExpect(jsonPath("$[0].embeddingOriginal", hasSize(512)))
+                .andExpect(jsonPath("$[0].embeddingLeft1", hasSize(512)))
+                .andExpect(jsonPath("$[0].embeddingLeft2", hasSize(512)))
+                .andExpect(jsonPath("$[0].embeddingRight1", hasSize(512)))
+                .andExpect(jsonPath("$[0].embeddingRight2", hasSize(512)));
+    }
 }

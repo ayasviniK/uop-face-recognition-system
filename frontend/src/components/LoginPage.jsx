@@ -34,33 +34,52 @@ export default function LoginPage({ onLogin }) {
     }
   };
 
-  const handleLoginSubmit = (e) => {
-    e.preventDefault();
-    setErrorMsg("");
+  
+  // REPLACE lines 37–62 (the whole handleLoginSubmit function) with:
 
-    const targetUser = DEMO_USERS.find((u) => u.id === selectedUserId);
-    if (!targetUser) {
-      setErrorMsg("Please select a valid demo user account.");
+const handleLoginSubmit = async (e) => {
+  e.preventDefault();
+  setErrorMsg("");
+
+  const targetUser = DEMO_USERS.find((u) => u.id === selectedUserId);
+  if (!targetUser) {
+    setErrorMsg("Please select a valid demo user account.");
+    return;
+  }
+
+  // Role-based portal access restriction check
+  if (roleTab === "ADMIN" && targetUser.role !== ROLES.ADMIN) {
+    setErrorMsg(
+      `Access Restricted: "${targetUser.name}" (Faculty User) is not authorized to log into the Admin portal.`
+    );
+    return;
+  }
+
+  // Call Spring Boot login API
+  try {
+    const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
+    const res = await fetch(`${API}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: targetUser.email, password: password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setErrorMsg(data.message || "Invalid credentials.");
       return;
     }
-
-    // Password verification
-    if (password !== targetUser.password) {
-      setErrorMsg(`Invalid password for account "${targetUser.name}". Try "${targetUser.password}"`);
-      return;
-    }
-
-    // Role-based portal access restriction check
-    if (roleTab === "ADMIN" && targetUser.role !== ROLES.ADMIN) {
-      setErrorMsg(
-        `Access Restricted: "${targetUser.name}" (Faculty User) is not authorized to log into the Admin portal.`
-      );
-      return;
-    }
-
-    // Successful authentication
+    // Store JWT token for future requests
+    localStorage.setItem("sentinel_token", data.data.token);
     onLogin(targetUser);
-  };
+  } catch (err) {
+    // Spring Boot not running — fall back to demo mode
+    if (password !== targetUser.password) {
+      setErrorMsg(`Invalid password. Demo hint: "${targetUser.password}"`);
+      return;
+    }
+    onLogin(targetUser);
+  }
+};
 
   return (
     <div style={{

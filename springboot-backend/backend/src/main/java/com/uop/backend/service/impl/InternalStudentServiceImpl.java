@@ -65,6 +65,10 @@ public class InternalStudentServiceImpl implements InternalStudentService {
                     .embeddingDarker(e.getEmbeddingDarker())
                     .embeddingRotatedPlus(e.getEmbeddingRotatedPlus())
                     .embeddingRotatedMinus(e.getEmbeddingRotatedMinus())
+                    .embeddingLeft1(e.getEmbeddingLeft1())
+                    .embeddingLeft2(e.getEmbeddingLeft2())
+                    .embeddingRight1(e.getEmbeddingRight1())
+                    .embeddingRight2(e.getEmbeddingRight2())
                     .build());
         }
 
@@ -111,6 +115,18 @@ public class InternalStudentServiceImpl implements InternalStudentService {
                     existing.setEmbeddingDarker(request.getEmbeddingDarker());
                     existing.setEmbeddingRotatedPlus(request.getEmbeddingRotatedPlus());
                     existing.setEmbeddingRotatedMinus(request.getEmbeddingRotatedMinus());
+                    if (request.getEmbeddingLeft1() != null) {
+                        existing.setEmbeddingLeft1(request.getEmbeddingLeft1());
+                    }
+                    if (request.getEmbeddingLeft2() != null) {
+                        existing.setEmbeddingLeft2(request.getEmbeddingLeft2());
+                    }
+                    if (request.getEmbeddingRight1() != null) {
+                        existing.setEmbeddingRight1(request.getEmbeddingRight1());
+                    }
+                    if (request.getEmbeddingRight2() != null) {
+                        existing.setEmbeddingRight2(request.getEmbeddingRight2());
+                    }
                     existing.setUpdatedAt(now);
                     return existing;
                 })
@@ -122,12 +138,16 @@ public class InternalStudentServiceImpl implements InternalStudentService {
                         .embeddingDarker(request.getEmbeddingDarker())
                         .embeddingRotatedPlus(request.getEmbeddingRotatedPlus())
                         .embeddingRotatedMinus(request.getEmbeddingRotatedMinus())
+                        .embeddingLeft1(request.getEmbeddingLeft1())
+                        .embeddingLeft2(request.getEmbeddingLeft2())
+                        .embeddingRight1(request.getEmbeddingRight1())
+                        .embeddingRight2(request.getEmbeddingRight2())
                         .generatedAt(now)
                         .updatedAt(now)
                         .build());
         embeddingRepository.save(embedding);
 
-        log.info("Successfully upserted student and 6 embeddings for studentId={}", studentId);
+        log.info("Successfully upserted student and embeddings for studentId={}", studentId);
         return Map.of("message", "Embeddings saved", "studentId", studentId);
     }
 
@@ -189,15 +209,42 @@ public class InternalStudentServiceImpl implements InternalStudentService {
         validateVector("embeddingDarker", request.getEmbeddingDarker());
         validateVector("embeddingRotatedPlus", request.getEmbeddingRotatedPlus());
         validateVector("embeddingRotatedMinus", request.getEmbeddingRotatedMinus());
+
+        validateOptionalVector("embeddingLeft1", request.getEmbeddingLeft1());
+        validateOptionalVector("embeddingLeft2", request.getEmbeddingLeft2());
+        validateOptionalVector("embeddingRight1", request.getEmbeddingRight1());
+        validateOptionalVector("embeddingRight2", request.getEmbeddingRight2());
     }
 
     private void validateVector(String name, List<Double> vector) {
         if (vector == null) {
             throw new EmbeddingValidationException("Vector '" + name + "' cannot be null");
         }
+        validateVectorContent(name, vector);
+    }
+
+    private void validateOptionalVector(String name, List<Double> vector) {
+        if (vector != null) {
+            validateVectorContent(name, vector);
+        }
+    }
+
+    private void validateVectorContent(String name, List<Double> vector) {
         if (vector.size() != EXPECTED_EMBEDDING_DIMENSION) {
             throw new EmbeddingValidationException(
                     "Vector '" + name + "' must contain exactly " + EXPECTED_EMBEDDING_DIMENSION + " elements, found: " + vector.size());
+        }
+        for (int i = 0; i < vector.size(); i++) {
+            Double val = vector.get(i);
+            if (val == null) {
+                throw new EmbeddingValidationException("Vector '" + name + "' contains null element at index " + i);
+            }
+            if (Double.isNaN(val)) {
+                throw new EmbeddingValidationException("Vector '" + name + "' contains NaN at index " + i);
+            }
+            if (Double.isInfinite(val)) {
+                throw new EmbeddingValidationException("Vector '" + name + "' contains infinite value at index " + i);
+            }
         }
     }
 }
