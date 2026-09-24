@@ -1,4 +1,6 @@
 Flask
+requests
+python-dotenv
 numpy
 opencv-python
 pillow

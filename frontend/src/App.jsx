@@ -19,7 +19,7 @@ import DevSwitcher from "./components/DevSwitcher.jsx";
 import StudentPhoto from "./components/StudentPhoto.jsx";
 import { parseStudentCSV, buildImageUrl } from "./utils/csvParser.js";
 import DuplicateDialog from "./components/DuplicateDialog.jsx";
-import { login as apiLogin, identifyImage, checkCsvDuplicates } from "./utils/api.js";
+import { login as apiLogin, identifyImage, checkCsvDuplicates, syncCsv } from "./utils/api.js";
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 const C = {
@@ -303,9 +303,21 @@ const PIPELINE = [
   { key:"results", label:"Match Results",         tech:"Threshold ≥ 80%",  icon:CheckCircle, color:C.success },
 ];
 
-function IncidentCanvas({ matches, stage }) {
+function IncidentCanvas({ matches, stage ,imageFile}) {
   const canvasRef = useRef(null);
+  const imgRef = useRef(null);
+
+  useEffect(() => {
+    if (!imageFile) { imgRef.current = null; return; }
+    const url = URL.createObjectURL(imageFile);
+    const img = new Image();
+    img.onload = () => { imgRef.current = img; };
+    img.src = url;
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
+
   useEffect(()=>{
+    
     const canvas = canvasRef.current;
     if(!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -364,7 +376,7 @@ function IncidentCanvas({ matches, stage }) {
     ctx.fillStyle=C.muted;
     ctx.font="9px 'JetBrains Mono',monospace";
     ctx.fillText("INCIDENT · UOP-GATE-A · 2024-03-15 14:32:11",6,canvas.height-6);
-  },[stage,matches]);
+  },[stage,matches,imageFile]);
 
   return (
     <canvas ref={canvasRef} width={480} height={300}
@@ -789,7 +801,7 @@ function IdentifyPage({ currentUser }) {
                   <RotateCcw size={14}/>
                 </button>
               </div>
-              <IncidentCanvas matches={matches} stage={canvasStage}/>
+              <IncidentCanvas matches={matches} stage={canvasStage} imageFile={imageFile} />
               {/* Metadata row */}
               <div style={{display:"flex",gap:12,marginTop:10}}>
                 {[
@@ -1282,6 +1294,7 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
   const [search, setSearch] = useState("");
 
   const [csvStudents, setCsvStudents] = useState([]);
+  const [csvFile, setCsvFile] = useState(null);
   const [csvFileName, setCsvFileName] = useState("");
   const [csvError, setCsvError] = useState("");
   const [photoStatus, setPhotoStatus] = useState({});
@@ -1293,6 +1306,7 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
   const handleCSVUpload = (file) => {
     if (!file) return;
     setCsvError("");
+    setCsvFile(file);
     setCsvFileName(file.name);
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -1351,7 +1365,7 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
     startSync(false);
   };
 
-  const startSync = (replace) => {
+  const startSync = async (replace) => {
     setReplaceMode(replace);
     setShowDuplicateDialog(false);
     setSyncStage("syncing");
@@ -1361,18 +1375,21 @@ function FacultySyncPage({ currentUser, students, setStudents }) {
       setTimeout(() => { setCurrentStep(i + 1); }, (i + 1) * 1100);
     });
 
-    // The actual sync runs in sync_university.py on the backend
-    // Spring Boot triggers it and returns progress
-    setTimeout(() => {
+    try {
+      if (!csvFile) throw new Error("Select a CSV file first");
+      const result = await syncCsv(csvFile, replace);
       setSyncStage("done");
       setLastSyncTime(new Date().toLocaleString());
-      setSyncedCount(replace ? csvStudents.length : duplicateInfo.newCount || csvStudents.length);
+      setSyncedCount(result.added + result.replaced);
       setStudents(prev => {
         const existingIds = new Set(prev.map(s => s.id));
         const newEntries = csvStudents.filter(s => !existingIds.has(s.id));
         return replace ? [...csvStudents] : [...prev, ...newEntries];
       });
-    }, 4800);
+    } catch (err) {
+      setSyncStage("idle");
+      setCsvError(err.message);
+    }
   };
 
   const scopedStudents = students.filter(s => {

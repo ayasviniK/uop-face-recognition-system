@@ -15,10 +15,20 @@ Endpoints:
 
 from flask import Flask, request, jsonify
 import cv2
+import csv
+import io
 import numpy as np
+import requests
 import traceback
 import os
 import tempfile
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent.parent / "springboot-backend" / "backend" / ".env")
+except ImportError:
+    pass
 
 from utils.embedder import get_embedding_from_image
 from utils.video_processor import process_video, format_timestamp
@@ -36,6 +46,43 @@ from utils.mock_db import (
 from utils.audit_logger import log_identification, log_registration, get_recent_logs
 
 app = Flask(__name__)
+
+SPRING_BOOT_URL = os.environ.get("SPRING_BOOT_URL", "http://localhost:8080")
+INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "")
+
+
+def get_mysql_embeddings():
+    """Load embedding vectors from Spring Boot's MySQL-backed internal API."""
+    response = requests.get(
+        f"{SPRING_BOOT_URL}/internal/students/embeddings",
+        headers={"X-Internal-API-Key": INTERNAL_API_KEY},
+        timeout=30,
+    )
+    response.raise_for_status()
+    candidates = []
+    embedding_fields = (
+        ("embeddingOriginal", "original"),
+        ("embeddingFlipped", "flipped"),
+        ("embeddingBrighter", "brighter"),
+        ("embeddingDarker", "darker"),
+        ("embeddingRotatedPlus", "rotated_plus"),
+        ("embeddingRotatedMinus", "rotated_minus"),
+        ("embeddingLeft1", "left_1"),
+        ("embeddingLeft2", "left_2"),
+        ("embeddingRight1", "right_1"),
+        ("embeddingRight2", "right_2"),
+    )
+    for student in response.json():
+        for field, augmentation in embedding_fields:
+            embedding = student.get(field)
+            if embedding:
+                candidates.append({
+                    "student_id": student["studentId"],
+                    "student_name": student["studentId"],
+                    "embedding": embedding,
+                    "augmentation": augmentation,
+                })
+    return candidates
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +108,42 @@ def health():
         "service": "UoP Face Recognition AI Service",
         "students_registered": student_count(),
     })
+
+
+@app.route("/sync/csv", methods=["POST"])
+def sync_csv():
+    """Import a frontend CSV, generate embeddings, and save them in MySQL."""
+    uploaded = request.files.get("file")
+    if not uploaded:
+        return jsonify({"error": "No CSV file provided"}), 400
+
+    try:
+        text = uploaded.read().decode("utf-8-sig")
+        reader = csv.DictReader(io.StringIO(text))
+        fieldnames = reader.fieldnames or []
+        reg_field = next((field for field in fieldnames if field.lower().replace("_", "") in {
+            "regno", "registrationno"
+        }), fieldnames[0] if fieldnames else None)
+        if not reg_field:
+            return jsonify({"error": "CSV must contain a registration number column"}), 400
+
+        reg_numbers = [
+            row.get(reg_field, "").strip()
+            for row in reader
+            if row.get(reg_field, "").strip()
+        ]
+        if not reg_numbers:
+            return jsonify({"error": "CSV contains no registration numbers"}), 400
+
+        from sync_university import run_sync
+        result = run_sync(
+            replace=request.form.get("replace", "false").lower() == "true",
+            reg_numbers=reg_numbers,
+        )
+        return jsonify(result), 200
+    except Exception as exc:
+        app.logger.exception("CSV sync failed")
+        return jsonify({"error": f"CSV sync failed: {exc}"}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -394,8 +477,8 @@ def api_recognize():
     if not detected_faces:
         return jsonify({"matches": []}), 200
 
-    # Get candidates from mock DB (later: Spring Boot will pass these)
-    candidates = get_all_embeddings()
+    # Use the same MySQL-backed embeddings that the sync pipeline writes.
+    candidates = get_mysql_embeddings()
     if not candidates:
         return jsonify({"matches": []}), 200
 

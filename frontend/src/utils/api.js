@@ -90,6 +90,38 @@ export async function checkCsvDuplicates(regNumbers, token) {
 }
 
 /**
+ * Send a CSV to the AI sync service. The service fetches student photos,
+ * generates embeddings, and stores them through Spring Boot in MySQL.
+ */
+export async function syncCsv(file, replace = false) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('replace', String(replace));
+
+  const res = await fetch('/ai/sync/csv', {
+    method: 'POST',
+    body: form,
+  });
+
+  const responseText = await res.text();
+  let data = {};
+  if (responseText.trim()) {
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      data = { error: responseText.trim() };
+    }
+  }
+  if (!res.ok) {
+    throw new Error(data.error || `CSV sync failed (HTTP ${res.status})`);
+  }
+  if (!responseText.trim()) {
+    throw new Error(`CSV sync failed: the AI service returned an empty response (HTTP ${res.status})`);
+  }
+  return data;
+}
+
+/**
  * Get system stats — total students, identifications, registrations.
  */
 export async function getStats(token) {

@@ -1,12 +1,21 @@
 package com.uop.backend.controller;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,11 +31,12 @@ import com.uop.backend.dto.ApiResponse;
 import com.uop.backend.dto.request.StudentCreateRequest;
 import com.uop.backend.dto.request.StudentUpdateRequest;
 import com.uop.backend.dto.response.StudentResponse;
+import com.uop.backend.repository.StudentRepository;
 import com.uop.backend.service.StudentService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
+import jakarta.validation.Valid;    
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -36,6 +46,10 @@ import lombok.RequiredArgsConstructor;
 public class StudentController {
 
     private final StudentService studentService;
+    private final StudentRepository studentRepository;
+
+    @Value("${file.upload-dir}")
+    private String uploadDir;
 
     @PostMapping
     @Operation(summary = "Register student metadata", description = "Registers student metadata with unique student ID, faculty, and tier.")
@@ -60,6 +74,37 @@ public class StudentController {
         }
         return ResponseEntity.ok(ApiResponse.success(result, "Students retrieved successfully"));
     }
+
+    @PostMapping("/check-duplicates")
+    @Operation(summary = "Check duplicate reg numbers", description = "Returns which reg numbers already exist before a CSV sync.")
+    public ResponseEntity<Map<String, Object>> checkDuplicates(@RequestBody Map<String, List<String>> body) {
+        List<String> regNumbers = body.getOrDefault("regNumbers", List.of());
+        List<String> duplicates = regNumbers.stream()
+                .filter(studentRepository::existsByStudentId)
+                .toList();
+        int newCount = regNumbers.size() - duplicates.size();
+
+        return ResponseEntity.ok(Map.of(
+                "total", regNumbers.size(),
+                "newCount", newCount,
+                "duplicateCount", duplicates.size(),
+                "duplicates", duplicates
+        ));
+    }
+
+    @GetMapping("/photo")
+    @Operation(summary = "Get student photo", description = "Serves the synced photo for a given reg number.")
+    public ResponseEntity<Resource> getPhoto(@RequestParam("studentId") String studentId) throws IOException {
+        String safeName = studentId.trim().replace("/", "_");
+        Path path = Paths.get(uploadDir).resolve(safeName + ".jpg").normalize();
+        if (!Files.exists(path)) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_JPEG)
+                .body(new UrlResource(path.toUri()));
+    }
+    
 
     public ResponseEntity<ApiResponse<StudentResponse>> getStudent(String studentId) {
         return ResponseEntity.ok(ApiResponse.success(studentService.getStudentById(studentId), "Student retrieved successfully"));

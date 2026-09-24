@@ -31,7 +31,7 @@ export function buildImageUrl(regno) {
   if (!regno) return "";
   const clean = String(regno).trim();
   if (!clean) return "";
-  return `https://stud.pdn.ac.lk/view.php?regno=${encodeURIComponent(clean)}`;
+  return `api/students/photo?studentId=${encodeURIComponent(clean)}`;
 }
 
 /**

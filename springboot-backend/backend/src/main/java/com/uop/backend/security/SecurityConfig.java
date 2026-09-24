@@ -83,6 +83,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/actuator/health", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                .requestMatchers("/api/students/photo").permitAll()  // Allow public access to student photos
                 .requestMatchers("/internal/**").hasRole("INTERNAL")
                 .requestMatchers("/api/students/**").hasRole("ADMIN")
                 .requestMatchers("/api/uploads/**").hasRole("ADMIN")

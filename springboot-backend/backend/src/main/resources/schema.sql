@@ -12,6 +12,12 @@ CREATE TABLE IF NOT EXISTS admins (
     UNIQUE KEY uk_admins_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+INSERT IGNORE INTO admins (username, password)
+VALUES (
+    'admin@uop.ac.lk',
+    '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iocttuDjxDSJcGvbTDiR7enRm9Ce'
+);
+
 CREATE TABLE IF NOT EXISTS students (
     student_id VARCHAR(50) NOT NULL,
     faculty VARCHAR(100) NOT NULL,

@@ -312,6 +312,10 @@ def generate_all_embeddings(reg_no: str) -> list[dict]:
         return []  # Likely a default placeholder image
 
     all_embeddings.extend(front_embeddings)
+    photo_dir = Path(__file__).parent.parent / "springboot-backend" / "backend" / "uploads" / "students"
+    photo_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = reg_no.replace("/", "_")
+    cv2.imwrite(str(photo_dir / f"{safe_name}.jpg"), front_img)
 
     # Left profile — optional, only if available
     left_img = fetch_photo(reg_no, suffix="_L")
@@ -488,6 +492,14 @@ def run_sync(
     print(f"  Failed:   {failed}  (API error / DB error)")
     print(f"  Time:     {duration/60:.1f} minutes")
     print(f"{'='*50}\n")
+
+    return {
+        "added": added,
+        "replaced": replaced,
+        "skipped": skipped,
+        "noFace": no_face,
+        "failed": failed,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

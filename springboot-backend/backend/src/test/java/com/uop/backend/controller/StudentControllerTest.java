@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
 import org.mockito.MockitoAnnotations;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -19,6 +19,7 @@ import com.uop.backend.dto.ApiResponse;
 import com.uop.backend.dto.request.StudentCreateRequest;
 import com.uop.backend.dto.request.StudentUpdateRequest;
 import com.uop.backend.dto.response.StudentResponse;
+import com.uop.backend.repository.StudentRepository;
 import com.uop.backend.service.StudentService;
 
 class StudentControllerTest {
@@ -26,12 +27,15 @@ class StudentControllerTest {
     @Mock
     private StudentService studentService;
 
+    @Mock
+    private StudentRepository studentRepository;
+
     private StudentController studentController;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        studentController = new StudentController(studentService);
+        studentController = new StudentController(studentService, studentRepository);
     }
 
     @Test
