@@ -762,11 +762,15 @@ function MatchCard({ match, currentUser }) {
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                 <StudentPhoto regno={s.id} initials={s.initials} size={36} color={s.accentColor} flagged={s.flagged} photoUrl={referencePhotoUrl || s.photoUrl} />
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{s.name}</div>
-                  <div style={{ fontSize: 10, color: C.muted }}>{s.faculty || s.facultyId || "Student"} · {s.year ? `Year ${s.year}` : ""}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+                  <div style={{ fontSize: 10, color: C.muted }}>{s.faculty || s.facultyId || "Student"}{s.year ? ` · Year ${s.year}` : ""}</div>
                 </div>
-                {mono(s.id, 10, C.accent)}
+                {!s.name?.includes(s.id) && (
+                  <div style={{ marginLeft: "auto", flexShrink: 0 }}>
+                    {mono(s.id, 10, C.accent)}
+                  </div>
+                )}
               </div>
               {s.flagged && (
                 <div style={{
