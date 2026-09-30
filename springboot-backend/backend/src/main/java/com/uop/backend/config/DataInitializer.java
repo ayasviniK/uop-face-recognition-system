@@ -23,27 +23,32 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        if (adminRepository.count() == 0) {
-            String adminUser = System.getenv("ADMIN_USERNAME");
-            if (adminUser == null || adminUser.trim().isEmpty()) {
-                adminUser = "admin";
-            }
-            String adminPass = System.getenv("ADMIN_PASSWORD");
-            boolean generated = false;
-            if (adminPass == null || adminPass.trim().isEmpty()) {
-                adminPass = "adminpassword";
-                generated = true;
-            }
-            Admin defaultAdmin = Admin.builder()
-                    .username(adminUser)
-                    .password(passwordEncoder.encode(adminPass))
-                    .build();
-            adminRepository.save(defaultAdmin);
-            if (generated) {
-                log.info("Administrator seeded with default development credentials for user '{}'. Set ADMIN_PASSWORD in production.", adminUser);
-            } else {
-                log.info("Administrator seeded successfully with configured credentials for user '{}'.", adminUser);
-            }
+        String customAdminUser = System.getenv("ADMIN_USERNAME");
+        String customAdminPass = System.getenv("ADMIN_PASSWORD");
+
+        if (customAdminUser != null && !customAdminUser.trim().isEmpty()) {
+            seedUserIfNotExists(customAdminUser, customAdminPass != null ? customAdminPass : "adminpassword");
+        }
+        seedUserIfNotExists("admin", customAdminPass != null ? customAdminPass : "adminpassword");
+        seedUserIfNotExists("admin@uop.ac.lk", "admin123");
+        seedUserIfNotExists("dean.eng@uop.ac.lk", "eng123");
+        seedUserIfNotExists("dean.med@uop.ac.lk", "med123");
+        seedUserIfNotExists("dean.sci@uop.ac.lk", "sci123");
+        seedUserIfNotExists("dean.art@uop.ac.lk", "art123");
+        seedUserIfNotExists("dean.ahs@uop.ac.lk", "ahs123");
+        seedUserIfNotExists("dean.agr@uop.ac.lk", "agr123");
+        seedUserIfNotExists("dean.mgt@uop.ac.lk", "mgt123");
+        seedUserIfNotExists("dean.den@uop.ac.lk", "den123");
+        seedUserIfNotExists("dean.vet@uop.ac.lk", "vet123");
+    }
+
+    private void seedUserIfNotExists(String username, String rawPassword) {
+        if (!adminRepository.existsByUsername(username)) {
+            adminRepository.save(Admin.builder()
+                    .username(username)
+                    .password(passwordEncoder.encode(rawPassword))
+                    .build());
+            log.info("Seeded user credentials for '{}'.", username);
         }
     }
 }
