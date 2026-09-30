@@ -41,6 +41,9 @@ public class FacultyResolver {
         if (FACULTY_MAP.containsKey(prefix)) {
             return FACULTY_MAP.get(prefix);
         }
+        if (prefix.isEmpty()) {
+            return "Unknown";
+        }
         String firstChar = prefix.substring(0, 1);
         return FACULTY_MAP.getOrDefault(firstChar, "Unknown");
     }

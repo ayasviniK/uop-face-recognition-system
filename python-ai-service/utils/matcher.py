@@ -15,9 +15,13 @@ SIMILARITY_THRESHOLD = 0.25
 
 
 def cosine_similarity(embedding_a, embedding_b) -> float:
-    a = np.array(embedding_a)
-    b = np.array(embedding_b)
-    return float(np.dot(a, b))
+    a = np.array(embedding_a, dtype=np.float32)
+    b = np.array(embedding_b, dtype=np.float32)
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return float(np.dot(a, b) / (norm_a * norm_b))
 
 
 def find_top_matches(
@@ -29,10 +33,12 @@ def find_top_matches(
     scored = []
     for candidate in candidate_embeddings:
         score = cosine_similarity(query_embedding, candidate["embedding"])
+        dept = candidate.get("faculty") or candidate.get("department", "")
         scored.append({
             "student_id":            candidate["student_id"],
             "student_name":          candidate["student_name"],
-            "department":            candidate.get("department", ""),
+            "faculty":               dept,
+            "department":            dept,
             "year":                  candidate.get("year", 1),
             "similarity_score":      round(score, 4),
             "matched_augmentation":  candidate.get("augmentation", "original"),

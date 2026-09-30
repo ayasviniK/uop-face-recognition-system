@@ -136,9 +136,11 @@ def register_student(
     computed_year = year or parse_year(student_id) or 1
 
     db["staff"][student_id] = {
+        "student_id":       student_id,
         "staff_id":         student_id,
         "full_name":        full_name,
         "department":       department or "",
+        "faculty":          department or "",
         "year":             computed_year,
         "email":            email or f"{student_id.replace('/', '_')}@pdn.ac.lk",
         "image":            image if image else (existing.get("image") if existing else None),
@@ -169,10 +171,13 @@ def register_students_batch(students_list: list[dict], replace: bool = False) ->
         photo_val = s.get("photoUrl")
         if photo_val and ("pdn.ac.lk" in str(photo_val) or "student_image_view" in str(photo_val)):
             photo_val = None
+        dept = s.get("faculty") or s.get("department") or s.get("dept") or (existing.get("department", "") if existing else "")
         db["staff"][sid] = {
+            "student_id":       sid,
             "staff_id":         sid,
             "full_name":        s.get("name") or (existing.get("full_name") if existing else f"Student ({sid})"),
-            "department":       s.get("department") or s.get("dept") or (existing.get("department", "") if existing else ""),
+            "department":       dept,
+            "faculty":          dept,
             "year":             computed_year,
             "email":            s.get("email") or (existing.get("email") if existing else f"{sid.replace('/', '_')}@pdn.ac.lk"),
             "image":            photo_val if photo_val else (existing.get("image") if existing else None),
@@ -193,11 +198,14 @@ def get_all_embeddings() -> list[dict]:
     db = _load()
     result = []
     for person in db["staff"].values():
+        sid = person.get("student_id") or person.get("staff_id")
+        dept = person.get("faculty") or person.get("department", "")
         for emb_entry in person.get("embeddings", []):
             result.append({
-                "student_id":   person["staff_id"],
+                "student_id":   sid,
                 "student_name": person["full_name"],
-                "department":   person.get("department", ""),
+                "faculty":      dept,
+                "department":   dept,
                 "year":         person.get("year", 1),
                 "augmentation": emb_entry["augmentation"],
                 "embedding":    emb_entry["embedding"],
@@ -207,7 +215,10 @@ def get_all_embeddings() -> list[dict]:
 
 def get_student(student_id: str) -> dict | None:
     db = _load()
-    return db["staff"].get(student_id)
+    person = db["staff"].get(student_id)
+    if person and "student_id" not in person:
+        person["student_id"] = person.get("staff_id", student_id)
+    return person
 
 
 def get_all_students() -> list[dict]:
@@ -218,10 +229,13 @@ def get_all_students() -> list[dict]:
         # Ensure protected university URLs are never leaked to client responses
         if img and ("pdn.ac.lk" in str(img) or "student_image_view" in str(img)):
             img = None
+        sid = person.get("student_id") or person.get("staff_id")
+        dept = person.get("faculty") or person.get("department", "")
         result.append({
-            "student_id":       person["staff_id"],
+            "student_id":       sid,
             "full_name":        person["full_name"],
-            "department":       person["department"],
+            "department":       dept,
+            "faculty":          dept,
             "year":             person.get("year"),
             "email":            person.get("email"),
             "image":            img,

@@ -298,8 +298,10 @@ def save_to_db(reg_no: str, faculty: str, embeddings: list[dict], year: int = No
         )
         if r.ok:
             return True
-    except Exception:
-        pass
+        else:
+            print(f" (DB save HTTP {r.status_code}: {r.text[:100].strip()})", end="")
+    except Exception as e:
+        print(f" (DB save error: {e})", end="")
 
     return local_saved
 

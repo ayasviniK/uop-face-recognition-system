@@ -13,7 +13,6 @@ import {
   ArrowLeft, RefreshCw, ArrowDown, ArrowUp,
 } from "lucide-react";
 import { UOP_FACULTIES, getFacultyById } from "./data/faculties.js";
-import { REGISTRY } from "./data/students.js";
 import { DEMO_USERS, getUserFaculty, ROLES } from "./data/users.js";
 import LoginPage from "./components/LoginPage.jsx";
 import StudentPhoto from "./components/StudentPhoto.jsx";

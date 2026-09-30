@@ -39,11 +39,12 @@ export async function login(username, password) {
  */
 export async function identifyImage(imageFile, token) {
   const form = new FormData();
+  form.append('file', imageFile);
   form.append('image', imageFile);
 
   const res = await fetch('/api/identification/search', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: form,
   });
 

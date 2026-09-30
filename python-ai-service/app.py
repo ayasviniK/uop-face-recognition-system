@@ -341,7 +341,8 @@ def list_students():
     return jsonify({"total": total, "returned": len(students), "students": students})
 
 
-@app.route("/students/<student_id>", methods=["GET"])
+@app.route("/students/<path:student_id>", methods=["GET"])
+@app.route("/api/students/<path:student_id>", methods=["GET"])
 def get_student_by_id(student_id):
     student = get_student(student_id)
     if not student:
@@ -350,7 +351,8 @@ def get_student_by_id(student_id):
     return jsonify(student_safe)
 
 
-@app.route("/students/<student_id>", methods=["DELETE"])
+@app.route("/students/<path:student_id>", methods=["DELETE"])
+@app.route("/api/students/<path:student_id>", methods=["DELETE"])
 def remove_student(student_id):
     if not delete_student(student_id):
         return jsonify({"error": f"Student {student_id} not found"}), 404

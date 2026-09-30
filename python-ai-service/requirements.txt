@@ -4,3 +4,5 @@ opencv-python
 pillow
 insightface
 onnxruntime
+requests
+python-dotenv
