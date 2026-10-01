@@ -18,6 +18,8 @@ public interface InternalStudentService {
 
     StudentIdsResponse getAllStudentIds();
 
+    Map<String, Object> getDatabaseStats();
+
     Map<String, String> updateStudentTier(String studentId, TierUpdateRequest request);
 
     SyncLog recordSyncLog(SyncLogRequest request);

@@ -974,39 +974,28 @@ function IdentifyPage({ currentUser, setPage, students = [], setStudents, regist
   const fileRef = useRef(null);
   const [dragging, setDragging] = useState(false);
   const [liveRegistryCount, setLiveRegistryCount] = useState(() => {
-    try {
-      const savedCount = localStorage.getItem("sentinel_student_count");
-      if (savedCount) {
-        const val = parseInt(savedCount, 10);
-        if (val > 1000) return val;
-      }
-    } catch (e) {}
-    if (registryCount && registryCount > 1000) return registryCount;
-    if (students?.length > 1000) return students.length;
-    return 37696;
+    return Number.isFinite(registryCount) ? registryCount : 0;
   });
 
   useEffect(() => {
-    if (registryCount && registryCount > 1000) {
+    if (Number.isFinite(registryCount)) {
       setLiveRegistryCount(registryCount);
-    } else if (students && students.length > 1000) {
-      setLiveRegistryCount(students.length);
     }
     fetch("http://localhost:5000/stats")
       .then(res => res.json())
       .then(data => {
-        if (data && typeof data.students_registered === "number" && data.students_registered > 0) {
-          setLiveRegistryCount(data.students_registered);
-          try { localStorage.setItem("sentinel_student_count", String(data.students_registered)); } catch (e) {}
+        if (data && typeof data.students_with_face_data === "number") {
+          setLiveRegistryCount(data.students_with_face_data);
+          try { localStorage.setItem("sentinel_student_count", String(data.students_with_face_data)); } catch (e) {}
         }
       })
       .catch(() => {
         fetch("http://localhost:5000/health")
           .then(res => res.json())
           .then(data => {
-            if (data && typeof data.students_registered === "number" && data.students_registered > 0) {
-              setLiveRegistryCount(data.students_registered);
-              try { localStorage.setItem("sentinel_student_count", String(data.students_registered)); } catch (e) {}
+            if (data && typeof data.students_with_face_data === "number") {
+              setLiveRegistryCount(data.students_with_face_data);
+              try { localStorage.setItem("sentinel_student_count", String(data.students_with_face_data)); } catch (e) {}
             }
           })
           .catch(() => {});
@@ -1468,7 +1457,7 @@ function IdentifyPage({ currentUser, setPage, students = [], setStudents, regist
             <div style={{fontSize:12,fontWeight:700,color:C.sub,marginBottom:10,
               letterSpacing:"0.06em"}}>SYSTEM METRICS</div>
             {[
-              ["Registry size", `${(liveRegistryCount || 37695).toLocaleString()} students`, C.accent],
+                  ["Registry size", `${(liveRegistryCount || 0).toLocaleString()} students`, C.accent],
               ["Avg inference","~340ms / image",C.cyan],
               ["Match threshold","≥ 40% (Med) / ≥ 60% (High)",C.success],
               ["False positive rate","< 1.2%",C.warning],
@@ -1524,7 +1513,7 @@ function AdminDashboard({ setPage, currentUser: _currentUser, students = [], inc
 
       {/* Central System Stats */}
       {(() => {
-        const totalCampusStudents = Math.max(registryCount || 0, students?.length > 1000 ? students.length : 0, 37696);
+        const totalCampusStudents = registryCount || 0;
         return (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
             <StatCard icon={Users} label="Total Campus Students" value={totalCampusStudents.toLocaleString()} trend={0} color={C.accent} sub="Registered in System" />
@@ -1874,6 +1863,7 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
   const [refreshingRegistry, setRefreshingRegistry] = useState(false);
 
   const [csvStudents, setCsvStudents] = useState([]);
+  const [csvFile, setCsvFile] = useState(null);
   const [csvFileName, setCsvFileName] = useState("");
   const [csvError, setCsvError] = useState("");
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
@@ -1886,10 +1876,10 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
     try {
       let res = null;
       try {
-        res = await fetch("/api/students");
+        res = await fetch("/api/students?enrolled=true");
       } catch (err) {}
       if (!res || !res.ok) {
-        res = await fetch("http://localhost:5000/students");
+        res = await fetch("http://localhost:5000/students?enrolled=true");
       }
       if (res && res.ok) {
         const data = await res.json();
@@ -1913,7 +1903,6 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
           setStudents(formatted);
           try { localStorage.setItem("sentinel_students", JSON.stringify(formatted.slice(0, 1000))); } catch (e) {}
           try { localStorage.setItem("sentinel_student_count", String(formatted.length)); } catch (e) {}
-          if (setRegistryCount) setRegistryCount(formatted.length);
         }
       }
     } catch (e) {
@@ -1926,6 +1915,7 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
   const handleCSVUpload = (file) => {
     if (!file) return;
     setCsvError("");
+    setCsvFile(file);
     setCsvFileName(file.name);
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -1936,10 +1926,6 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
           return;
         }
         setCsvStudents(parsed);
-        setStudents(parsed);
-        try { localStorage.setItem("sentinel_students", JSON.stringify(parsed.slice(0, 1000))); } catch (e) {}
-        try { localStorage.setItem("sentinel_student_count", String(parsed.length)); } catch (e) {}
-        if (setRegistryCount) setRegistryCount(parsed.length);
 
         // Auto scroll to sync actions button
         setTimeout(() => {
@@ -1948,24 +1934,15 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
         }, 250);
 
         // Check for duplicates
-        const existingIds = new Set(students.map(s => s.id));
-        const dbDupes = parsed.filter(s => existingIds.has(s.id));
         const internalDupes = parsed.duplicateCount || 0;
         const totalRows = parsed.totalRows || parsed.length;
 
-        if (dbDupes.length === parsed.length) {
-          setCsvError(`⚠ Duplicate CSV detected: All ${parsed.length} students in "${file.name}" are already registered in the system.`);
-        } else {
-          const notes = [];
-          if (internalDupes > 0) {
-            notes.push(`Loaded ${parsed.length.toLocaleString()} unique students from ${totalRows.toLocaleString()} rows (${internalDupes.toLocaleString()} duplicate entries in the file were automatically merged).`);
-          }
-          if (dbDupes.length > 0) {
-            notes.push(`${dbDupes.length.toLocaleString()} of ${parsed.length.toLocaleString()} students are already registered in the active registry.`);
-          }
-          if (notes.length > 0) {
-            setCsvError(`ℹ Notice: ${notes.join(" ")}`);
-          }
+        const notes = [];
+        if (internalDupes > 0) {
+          notes.push(`Loaded ${parsed.length.toLocaleString()} unique students from ${totalRows.toLocaleString()} rows (${internalDupes.toLocaleString()} duplicate entries in the file were automatically merged).`);
+        }
+        if (notes.length > 0) {
+          setCsvError(`ℹ Notice: ${notes.join(" ")}`);
         }
       } catch (err) {
         setCsvError("Failed to parse CSV: " + err.message);
@@ -1980,10 +1957,7 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
     const regNumbers = csvStudents.map(s => s.id);
 
     // 1. Check against active registry
-    const existingIds = new Set(students.map(s => s.id));
-    const localDupes = regNumbers.filter(id => existingIds.has(id));
-
-    // 2. Check backend API (Spring Boot or Flask)
+    // Check the authoritative MySQL-backed API; do not use cached frontend records.
     let remoteDupes = [];
     try {
       let res = null;
@@ -2016,7 +1990,7 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
       console.warn("Backend duplicate check offline, using local registry:", err);
     }
 
-    const allDupes = Array.from(new Set([...localDupes, ...remoteDupes]));
+    const allDupes = Array.from(new Set(remoteDupes));
     if (allDupes.length > 0) {
       const newCount = Math.max(0, regNumbers.length - allDupes.length);
       setDuplicateInfo({ duplicates: allDupes, newCount });
@@ -2033,53 +2007,45 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
     setSyncStage("syncing");
     setCurrentStep(0);
 
-    SYNC_STEPS.forEach((_, i) => {
-      setTimeout(() => { setCurrentStep(i + 1); }, (i + 1) * 1100);
-    });
-
-    // Persist students to backend database
     try {
-      let res = null;
-      try {
-        res = await fetch("/api/students/batch", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ students: csvStudents, replace }),
-        });
-      } catch (err) {
-        // network error
+      if (!csvFile) throw new Error("Please select a CSV file first");
+
+      const form = new FormData();
+      form.append("file", csvFile);
+      form.append("replace", String(replace));
+
+      setCurrentStep(1);
+      const res = await fetch("/ai/sync/csv", {
+        method: "POST",
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "CSV sync failed");
       }
 
-      if (!res || !res.ok) {
-        res = await fetch("http://localhost:5000/api/students/batch", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ students: csvStudents, replace }),
-        });
-      }
-
-      if (res && res.ok) {
-        const batchData = await res.json();
-        console.log("Backend sync response:", batchData);
-      }
-    } catch (e) {
-      console.warn("Backend batch registration notice:", e);
-    }
-
-    setTimeout(() => {
+      setCurrentStep(SYNC_STEPS.length);
       setSyncStage("done");
       setLastSyncTime(new Date().toLocaleString());
-      setSyncedCount(csvStudents.length);
+      setSyncedCount((data.added || 0) + (data.replaced || 0));
       setStudents(prev => {
         const existingIds = new Set(prev.map(s => s.id));
         const newEntries = csvStudents.filter(s => !existingIds.has(s.id));
         const updated = replace ? [...csvStudents] : [...prev, ...newEntries];
         try { localStorage.setItem("sentinel_students", JSON.stringify(updated.slice(0, 1000))); } catch (e) {}
         try { localStorage.setItem("sentinel_student_count", String(updated.length)); } catch (e) {}
-        if (setRegistryCount) setRegistryCount(updated.length);
+        if (setRegistryCount) setRegistryCount(prev => prev + (data.added || 0));
         return updated;
       });
-    }, 4800);
+      const failures = (data.noFace || 0) + (data.failed || 0);
+      setCsvError(failures > 0
+        ? `Sync completed with ${failures} students needing attention. Added: ${data.added || 0}, replaced: ${data.replaced || 0}, skipped: ${data.skipped || 0}.`
+        : `Sync completed. Added: ${data.added || 0}, replaced: ${data.replaced || 0}, skipped: ${data.skipped || 0}.`);
+    } catch (e) {
+      setSyncStage("idle");
+      setCurrentStep(-1);
+      setCsvError(`Sync failed: ${e.message}`);
+    }
   };
 
   const [registryPage, setRegistryPage] = useState(1);
@@ -2817,33 +2783,24 @@ export default function App() {
     } catch (e) {}
     return Array.isArray(REGISTRY) ? REGISTRY : [];
   });
-  const [registryCount, setRegistryCount] = useState(() => {
-    try {
-      const savedCount = localStorage.getItem("sentinel_student_count");
-      if (savedCount) {
-        const count = parseInt(savedCount, 10);
-        if (count > 1000) return count;
-      }
-    } catch (e) {}
-    return 37696;
-  });
+  const [registryCount, setRegistryCount] = useState(0);
 
   useEffect(() => {
     fetch("http://localhost:5000/stats")
       .then(r => r.json())
       .then(d => {
-        if (d && typeof d.students_registered === "number" && d.students_registered > 0) {
-          setRegistryCount(d.students_registered);
-          try { localStorage.setItem("sentinel_student_count", String(d.students_registered)); } catch (e) {}
+        if (d && typeof d.students_with_face_data === "number") {
+          setRegistryCount(d.students_with_face_data);
+          try { localStorage.setItem("sentinel_student_count", String(d.students_with_face_data)); } catch (e) {}
         }
       })
       .catch(() => {
         fetch("http://localhost:5000/health")
           .then(r => r.json())
           .then(d => {
-            if (d && typeof d.students_registered === "number" && d.students_registered > 0) {
-              setRegistryCount(d.students_registered);
-              try { localStorage.setItem("sentinel_student_count", String(d.students_registered)); } catch (e) {}
+            if (d && typeof d.students_with_face_data === "number") {
+              setRegistryCount(d.students_with_face_data);
+              try { localStorage.setItem("sentinel_student_count", String(d.students_with_face_data)); } catch (e) {}
             }
           })
           .catch(() => {});
@@ -2852,12 +2809,6 @@ export default function App() {
 
   useEffect(() => {
     if (students && students.length > 0) {
-      if (students.length > 1000) {
-        setRegistryCount(students.length);
-        try {
-          localStorage.setItem("sentinel_student_count", String(students.length));
-        } catch (e) {}
-      }
       try {
         localStorage.setItem("sentinel_students", JSON.stringify(students.slice(0, 1000)));
       } catch (e) {}
@@ -2900,10 +2851,10 @@ export default function App() {
     try {
       let res = null;
       try {
-        res = await fetch("/api/students");
+        res = await fetch("/api/students?enrolled=true");
       } catch (err) {}
       if (!res || !res.ok) {
-        res = await fetch("http://localhost:5000/students");
+        res = await fetch("http://localhost:5000/students?enrolled=true");
       }
       if (res && res.ok) {
         const data = await res.json();

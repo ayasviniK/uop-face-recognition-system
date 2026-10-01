@@ -22,6 +22,10 @@ import tempfile
 import base64
 import io
 from PIL import Image, ImageOps
+from utils.mysql_db import get_embeddings as get_mysql_embeddings
+from utils.mysql_db import get_stats as get_mysql_stats
+from utils.mysql_db import get_student_ids as get_mysql_student_ids
+from utils.mysql_db import save_embeddings as save_mysql_embeddings
 
 from utils.embedder import get_embedding_from_image
 from utils.video_processor import process_video, format_timestamp
@@ -39,8 +43,47 @@ from utils.mock_db import (
     parse_year,
 )
 from utils.audit_logger import log_identification, log_registration, get_recent_logs
+from sync_university import read_csv, run_sync
 
 app = Flask(__name__)
+USE_MOCK_DB = os.environ.get("USE_MOCK_DB", "false").lower() in ("1", "true", "yes")
+
+
+def active_embeddings() -> list[dict]:
+    try:
+        return get_mysql_embeddings()
+    except Exception as exc:
+        if USE_MOCK_DB:
+            print(f"MySQL unavailable; using mock embeddings: {exc}")
+            return get_all_embeddings()
+        print(f"MySQL embeddings unavailable: {exc}")
+        return []
+
+
+def active_student_ids() -> list[str]:
+    try:
+        return get_mysql_student_ids()
+    except Exception as exc:
+        if USE_MOCK_DB:
+            return [student.get("student_id") for student in get_all_students() if student.get("student_id")]
+        print(f"MySQL student IDs unavailable: {exc}")
+        return []
+
+
+def active_database_stats() -> dict[str, int]:
+    try:
+        return get_mysql_stats()
+    except Exception as exc:
+        if USE_MOCK_DB:
+            students = get_all_students()
+            enrolled = sum(1 for student in students if student.get("embeddings_count", 0) > 0)
+            return {
+                "studentCount": len(students),
+                "embeddingStudentCount": enrolled,
+                "embeddingVectorCount": len(get_all_embeddings()),
+            }
+        print(f"MySQL database stats unavailable: {exc}")
+        return {"studentCount": 0, "embeddingStudentCount": 0, "embeddingVectorCount": 0}
 
 @app.after_request
 def add_cors_headers(response):
@@ -86,10 +129,13 @@ def decode_image(file_storage):
 
 @app.route("/health")
 def health():
+    database_stats = active_database_stats()
     return jsonify({
         "status": "ok",
         "service": "UoP Face Recognition AI Service",
-        "students_registered": student_count(),
+        "students_registered": database_stats["embeddingStudentCount"],
+        "students_metadata": database_stats["studentCount"],
+        "students_with_face_data": database_stats["embeddingStudentCount"],
     })
 
 
@@ -220,15 +266,43 @@ def register():
             pass
 
     # Save to DB
-    register_student(
-        student_id=student_id,
-        full_name=full_name,
-        department=department,
-        year=year,
-        email=email,
-        embeddings=embeddings,
-        image=ref_b64,
-    )
+    payload = {
+        "studentId": student_id,
+        "faculty": department,
+        "tier": 1,
+    }
+    field_names = {
+        "original": "embeddingOriginal",
+        "flipped": "embeddingFlipped",
+        "brighter": "embeddingBrighter",
+        "darker": "embeddingDarker",
+        "rotated_plus": "embeddingRotatedPlus",
+        "rotated_minus": "embeddingRotatedMinus",
+        "left_1": "embeddingLeft1",
+        "left_2": "embeddingLeft2",
+        "right_1": "embeddingRight1",
+        "right_2": "embeddingRight2",
+    }
+    for embedding in embeddings:
+        field = field_names.get(embedding["augmentation"])
+        if field:
+            payload[field] = embedding["embedding"]
+
+    try:
+        save_mysql_embeddings(payload)
+    except Exception as exc:
+        if not USE_MOCK_DB:
+            log_registration(student_id, success=False, reason=f"MySQL save failed: {exc}")
+            return jsonify({"error": "Could not save student to MySQL backend"}), 503
+        register_student(
+            student_id=student_id,
+            full_name=full_name,
+            department=department,
+            year=year,
+            email=email,
+            embeddings=embeddings,
+            image=ref_b64,
+        )
 
     log_registration(student_id, success=True)
 
@@ -272,7 +346,7 @@ def identify():
             "message": "No faces found in the image.",
         })
 
-    candidates = get_all_embeddings()
+    candidates = active_embeddings()
 
     if not candidates:
         return jsonify({
@@ -322,7 +396,16 @@ def list_students():
     search_query  = request.args.get("q", "").strip().lower()
     limit         = request.args.get("limit", type=int)
 
-    students = get_all_students()
+    students = [
+        {
+            "student_id": student_id,
+            "full_name": f"Student ({student_id})",
+            "faculty": student_id.split("/", 1)[0],
+            "year": parse_year(student_id) or 1,
+            "embeddings_count": 1,
+        }
+        for student_id in active_student_ids()
+    ]
 
     if enrolled_only:
         students = [s for s in students if s.get("embeddings_count", 0) > 0]
@@ -363,8 +446,7 @@ def remove_student(student_id):
 def check_duplicates_endpoint():
     data = request.get_json(silent=True) or {}
     reg_numbers = data.get("regNumbers", [])
-    all_students = get_all_students()
-    all_registered_ids = set(s.get("student_id") for s in all_students)
+    all_registered_ids = set(active_student_ids())
     
     dupes = [r for r in reg_numbers if r in all_registered_ids]
     new_count = len(reg_numbers) - len(dupes)
@@ -378,6 +460,12 @@ def check_duplicates_endpoint():
 
 @app.route("/api/students/batch", methods=["POST"])
 def batch_register_students():
+    if not USE_MOCK_DB:
+        return jsonify({
+            "success": False,
+            "error": "Legacy mock batch registration is disabled. Use /ai/sync/csv.",
+        }), 410
+
     data = request.get_json(silent=True) or {}
     students_list = data.get("students", [])
     replace = data.get("replace", False)
@@ -387,6 +475,43 @@ def batch_register_students():
         "message": f"Successfully registered {count} students in backend database",
         "total_registered": student_count()
     })
+
+
+@app.route("/ai/sync/csv", methods=["POST"])
+def sync_csv():
+    """Parse an uploaded CSV and run the photo-to-embedding sync pipeline."""
+    csv_file = request.files.get("file")
+    if not csv_file or not csv_file.filename:
+        return jsonify({"success": False, "error": "CSV file is required"}), 400
+
+    if not csv_file.filename.lower().endswith(".csv"):
+        return jsonify({"success": False, "error": "Only CSV files are supported"}), 400
+
+    replace = request.form.get("replace", "false").lower() == "true"
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp_file:
+            csv_file.save(temp_file)
+            temp_path = temp_file.name
+
+        reg_numbers = read_csv(temp_path)
+        if not reg_numbers:
+            return jsonify({
+                "success": False,
+                "error": "No registration numbers found. Expected a Reg_No column.",
+            }), 400
+
+        result = run_sync(reg_numbers=reg_numbers, replace=replace)
+        return jsonify({"success": True, **result})
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({"success": False, "error": f"CSV sync failed: {exc}"}), 500
+    finally:
+        if temp_path:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -428,7 +553,7 @@ def identify_video():
         }), 400
 
     # Check if any students are registered
-    candidates = get_all_embeddings()
+    candidates = active_embeddings()
     if not candidates:
         return jsonify({
             "error": "No students registered yet. Please register students before processing video."
@@ -487,16 +612,15 @@ def audit_logs():
 
 @app.route("/stats", methods=["GET"])
 def stats():
-    all_students = get_all_students()
-    enrolled_with_faces = sum(1 for s in all_students if s.get("embeddings_count", 0) > 0)
-    candidates = get_all_embeddings()
+    database_stats = active_database_stats()
     logs = get_recent_logs(limit=1000)
     return jsonify({
-        "students_registered":     student_count(),
-        "students_with_face_data": enrolled_with_faces,
-        "total_face_embeddings":   len(candidates),
+        "students_registered":     database_stats["embeddingStudentCount"],
+        "students_metadata":       database_stats["studentCount"],
+        "students_with_face_data": database_stats["embeddingStudentCount"],
+        "total_face_embeddings":   database_stats["embeddingVectorCount"],
         "total_identifications":   sum(1 for l in logs if l["event"] == "identification"),
-        "total_registrations":     enrolled_with_faces,
+        "total_registrations":     database_stats["embeddingStudentCount"],
     })
 
 
@@ -546,11 +670,11 @@ def api_recognize():
         return jsonify({
             "matches": [],
             "faces_detected": 0,
-            "total_registered_embeddings": len(get_all_embeddings()),
+            "total_registered_embeddings": len(active_embeddings()),
             "message": "No faces detected in image. Please ensure faces are clearly visible."
         }), 200
 
-    candidates = get_all_embeddings()
+    candidates = active_embeddings()
 
     face_results = []
     for idx, face in enumerate(detected_faces):

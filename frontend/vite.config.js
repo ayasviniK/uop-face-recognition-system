@@ -5,6 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      '/ai': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
       '/api/students/batch': {
         target: 'http://localhost:5000',
         changeOrigin: true,

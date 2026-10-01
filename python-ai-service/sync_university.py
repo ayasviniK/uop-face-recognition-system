@@ -67,6 +67,7 @@ API_PASSWORD         = os.environ.get("UNI_API_PASSWORD", "")
 API_KEY              = os.environ.get("UNI_API_KEY", "")
 SPRING_BOOT_URL      = os.environ.get("SPRING_BOOT_URL", "http://localhost:8080")
 INTERNAL_API_KEY     = os.environ.get("INTERNAL_API_KEY", "")
+USE_MOCK_DB          = os.environ.get("USE_MOCK_DB", "false").lower() in ("1", "true", "yes")
 
 CSV_PATH          = os.path.join(os.path.dirname(__file__), "sample_data", "students.csv")
 CSV_REG_NO_COLUMN = "Reg_No"
@@ -272,39 +273,39 @@ def get_existing_ids() -> set:
     except Exception:
         pass
 
-    # Also check local mock_db.json for students that already have embeddings
-    try:
-        from utils.mock_db import _load
-        db_data = _load()
-        for sid, s in db_data.get("staff", {}).items():
-            if s.get("embeddings") and len(s.get("embeddings")) > 0:
-                ids.add(sid)
-    except Exception:
-        pass
+    if USE_MOCK_DB:
+        try:
+            from utils.mock_db import _load
+            db_data = _load()
+            for sid, s in db_data.get("staff", {}).items():
+                if s.get("embeddings") and len(s.get("embeddings")) > 0:
+                    ids.add(sid)
+        except Exception:
+            pass
 
     return ids
 
 
 def save_to_db(reg_no: str, faculty: str, embeddings: list[dict], year: int = None, image_b64: str = None) -> bool:
     """
-    Save embeddings to both local mock_db.json and Spring Boot database.
+    Save embeddings to Spring Boot/MySQL. Local mock storage is optional.
     Supports up to 10 embedding slots.
     """
-    # 1. Always register in local mock_db.json for Flask AI Service
     local_saved = False
-    try:
-        from utils.mock_db import register_student
-        register_student(
-            student_id=reg_no,
-            full_name=f"Student ({reg_no})",
-            department=faculty,
-            year=year,
-            embeddings=embeddings,
-            image=image_b64,
-        )
-        local_saved = True
-    except Exception as e:
-        print(f"    Local mock_db save notice: {e}")
+    if USE_MOCK_DB:
+        try:
+            from utils.mock_db import register_student
+            register_student(
+                student_id=reg_no,
+                full_name=f"Student ({reg_no})",
+                department=faculty,
+                year=year,
+                embeddings=embeddings,
+                image=image_b64,
+            )
+            local_saved = True
+        except Exception as e:
+            print(f"    Local mock_db save notice: {e}")
 
     # 2. Also register in Spring Boot MySQL backend if available
     aug_to_field = {
@@ -350,7 +351,7 @@ def save_to_db(reg_no: str, faculty: str, embeddings: list[dict], year: int = No
     except Exception as e:
         print(f" (DB save error: {e})", end="")
 
-    return local_saved
+    return local_saved if USE_MOCK_DB else False
 
 
 def log_sync(added: int, skipped: int, failed: int, replaced: int, duration: float):
@@ -377,8 +378,15 @@ def read_csv(path: str) -> list[str]:
     total_raw = 0
     with open(path, "r", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
+        fields = reader.fieldnames or []
+        reg_column = next(
+            (field for field in fields if field.strip().lower() in {
+                "reg_no", "regno", "registration_no", "registrationno", "index", "index_no"
+            }),
+            CSV_REG_NO_COLUMN,
+        )
         for row in reader:
-            reg_no = row.get(CSV_REG_NO_COLUMN, "").strip()
+            reg_no = row.get(reg_column, "").strip()
             if reg_no:
                 total_raw += 1
                 norm = reg_no.upper()
@@ -624,6 +632,16 @@ def run_sync(
     print(f"  Time:     {duration/60:.1f} minutes")
     print(f"{'='*50}\n")
 
+    return {
+        "total": total,
+        "added": added,
+        "replaced": replaced,
+        "skipped": skipped,
+        "noFace": no_face,
+        "failed": failed,
+        "durationSeconds": round(duration, 2),
+    }
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Scheduler
@@ -677,7 +695,7 @@ def main():
         requests.get(f"{SPRING_BOOT_URL}/actuator/health", timeout=5)
         print(f"  Spring Boot: running [OK]\n")
     except Exception:
-        print(f"  Note: Spring Boot not reachable at {SPRING_BOOT_URL} (saving directly to local mock_db)\n")
+        print(f"  Note: Spring Boot not reachable at {SPRING_BOOT_URL}\n")
 
     if args.schedule:
         run_scheduled()

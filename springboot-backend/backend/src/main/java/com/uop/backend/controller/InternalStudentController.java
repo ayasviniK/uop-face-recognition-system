@@ -64,6 +64,12 @@ public class InternalStudentController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/students/stats")
+    @Operation(summary = "Get database counts", description = "Returns lightweight student and embedding counts without transferring vectors.")
+    public ResponseEntity<Map<String, Object>> getDatabaseStats() {
+        return ResponseEntity.ok(internalStudentService.getDatabaseStats());
+    }
+
     @PatchMapping(value = {
             "/students/{studentId}/tier",
             "/students/{p1}/{p2}/{p3}/tier",

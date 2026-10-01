@@ -158,8 +158,6 @@ def register_students_batch(students_list: list[dict], replace: bool = False) ->
     Bulk save multiple student records into the database in a single disk write.
     """
     db = _load()
-    if replace:
-        db["staff"] = {}
     now = datetime.now(timezone.utc).isoformat()
     count = 0
     for s in students_list:

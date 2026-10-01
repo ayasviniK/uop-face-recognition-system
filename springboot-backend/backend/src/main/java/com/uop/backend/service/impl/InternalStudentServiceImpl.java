@@ -160,6 +160,18 @@ public class InternalStudentServiceImpl implements InternalStudentService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> getDatabaseStats() {
+        long studentCount = studentRepository.count();
+        long embeddingStudentCount = embeddingRepository.count();
+        return Map.of(
+                "studentCount", studentCount,
+                "embeddingStudentCount", embeddingStudentCount,
+                "embeddingVectorCount", embeddingStudentCount * 10
+        );
+    }
+
+    @Override
     @Transactional
     public Map<String, String> updateStudentTier(String studentId, TierUpdateRequest request) {
         if (request.getTier() == null || (request.getTier() != 1 && request.getTier() != 2)) {
