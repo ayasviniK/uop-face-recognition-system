@@ -3,52 +3,100 @@
  */
 
 export const FACULTY_PREFIX_MAP = {
+  // Arts
   A: "ART",
   ART: "ART",
   ARTS: "ART",
+  "FACULTY OF ARTS": "ART",
+
+  // Allied Health Sciences
   AHS: "AHS",
+  ALLIED: "AHS",
+  HEALTH: "AHS",
+  "ALLIED HEALTH SCIENCES": "AHS",
+  "FACULTY OF ALLIED HEALTH SCIENCES": "AHS",
+
+  // Agriculture
   AG: "AGR",
   AGR: "AGR",
+  AGRI: "AGR",
   AGRICULTURE: "AGR",
+  "FACULTY OF AGRICULTURE": "AGR",
+
+  // Medicine
   M: "MED",
   MED: "MED",
   MEDICINE: "MED",
+  "FACULTY OF MEDICINE": "MED",
+
+  // Engineering
   E: "ENG",
+  EN: "ENG",
   ENG: "ENG",
   ENGINEERING: "ENG",
+  "FACULTY OF ENGINEERING": "ENG",
+
+  // Science
   S: "SCI",
+  SC: "SCI",
   SCI: "SCI",
   SCIENCE: "SCI",
+  "FACULTY OF SCIENCE": "SCI",
+
+  // Dental
   D: "DEN",
   DEN: "DEN",
+  DENT: "DEN",
   DENTAL: "DEN",
   DENTISTRY: "DEN",
+  "DENTAL SCIENCES": "DEN",
+  "FACULTY OF DENTAL SCIENCES": "DEN",
+
+  // Veterinary Medicine & Animal Science
   V: "VET",
   VS: "VET",
   VM: "VET",
   VET: "VET",
   VETERINARY: "VET",
+  "VETERINARY SCIENCE": "VET",
+  "VETERINARY MEDICINE": "VET",
+  "FACULTY OF VETERINARY MEDICINE & ANIMAL SCIENCE": "VET",
+
+  // Management
   MG: "MGT",
   MGT: "MGT",
+  MANAGE: "MGT",
   MANAGEMENT: "MGT",
+  "FACULTY OF MANAGEMENT": "MGT",
+  "FACULTY OF MANAGEMENT STUDIES": "MGT",
 };
 
 /**
- * Resolves any faculty string (prefix, code, or faculty name) to canonical UOP code (e.g. MGT, VET).
+ * Resolves any faculty string (prefix, code, full faculty name, or index number) to canonical UOP code (e.g. MGT, VET).
  */
 export function resolveFacultyCode(input) {
   if (!input) return "UNKNOWN";
-  const s = String(input).trim().toUpperCase();
+  let s = String(input).trim().toUpperCase();
   if (FACULTY_PREFIX_MAP[s]) return FACULTY_PREFIX_MAP[s];
+
+  // If input is an index/registration number containing '/', extract prefix before first '/'
+  if (s.includes("/")) {
+    const p = s.split("/")[0].trim();
+    if (FACULTY_PREFIX_MAP[p]) return FACULTY_PREFIX_MAP[p];
+    s = p;
+  }
+
+  // Exact phrase and keyword regex matching (multi-character/specific keywords prioritized)
   if (/MANAG|MGT|\bMG\b/i.test(s)) return "MGT";
   if (/VET|ANIMAL|\bVS\b|\bVM\b/i.test(s)) return "VET";
   if (/DENT|\bDEN\b|\bD\b/i.test(s)) return "DEN";
   if (/ALLIED|HEALTH|\bAHS\b/i.test(s)) return "AHS";
   if (/AGRI|\bAGR\b|\bAG\b/i.test(s)) return "AGR";
-  if (/ENG|\bE\b/i.test(s)) return "ENG";
+  if (/ENG|\bEN\b|\bE\b/i.test(s)) return "ENG";
   if (/MED|\bM\b/i.test(s)) return "MED";
-  if (/SCI|\bS\b/i.test(s)) return "SCI";
+  if (/SCI|\bSC\b|\bS\b/i.test(s)) return "SCI";
   if (/ART|\bA\b/i.test(s)) return "ART";
+
   return s;
 }
 

@@ -56,12 +56,13 @@ const handleLoginSubmit = async (e) => {
   }
 
   // Call Spring Boot login API
+  const effectivePassword = password.trim() ? password : targetUser.password;
   try {
     const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
     const res = await fetch(`${API}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: targetUser.email, password: password }),
+      body: JSON.stringify({ username: targetUser.email, password: effectivePassword }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -69,11 +70,13 @@ const handleLoginSubmit = async (e) => {
       return;
     }
     // Store JWT token for future requests
-    localStorage.setItem("sentinel_token", data.data.token);
+    if (data?.data?.token) {
+      localStorage.setItem("sentinel_token", data.data.token);
+    }
     onLogin(targetUser);
   } catch {
-    // Spring Boot not running — fall back to demo mode
-    if (password !== targetUser.password) {
+    // Spring Boot not reachable — fall back to demo mode
+    if (effectivePassword !== targetUser.password) {
       setErrorMsg(`Invalid password. Demo hint: "${targetUser.password}"`);
       return;
     }
@@ -392,7 +395,7 @@ const handleLoginSubmit = async (e) => {
                 </button>
               </div>
               <div style={{ fontSize: "11px", color: "#64748B" }}>
-                Demo Password Hint: <code style={{ color: MAROON, fontWeight: 700 }}>{selectedUser.password}</code>
+                Demo Password Hint: <code onClick={() => setPassword(selectedUser.password)} title="Click to fill password" style={{ color: MAROON, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>{selectedUser.password}</code>
               </div>
             </div>
 

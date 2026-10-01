@@ -1,3 +1,5 @@
+import { resolveFacultyCode } from "../utils/csvParser.js";
+
 /**
  * Canonical 9 Faculties of the University of Peradeniya (UOP)
  */
@@ -19,5 +21,15 @@ export const FACULTY_MAP = UOP_FACULTIES.reduce((acc, f) => {
 }, {});
 
 export function getFacultyById(id) {
-  return FACULTY_MAP[id] || { id: id || "UNKNOWN", code: id || "UNK", name: id || "Unknown Faculty", color: "#3B82F6" };
+  if (!id) {
+    return { id: "UNKNOWN", code: "UNK", name: "Unknown Faculty", color: "#3B82F6" };
+  }
+  const resolvedCode = resolveFacultyCode(id);
+  if (FACULTY_MAP[resolvedCode]) {
+    return FACULTY_MAP[resolvedCode];
+  }
+  if (FACULTY_MAP[id]) {
+    return FACULTY_MAP[id];
+  }
+  return { id: id, code: resolvedCode || id, name: id, color: "#3B82F6" };
 }

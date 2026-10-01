@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { UOP_FACULTIES, getFacultyById } from "./data/faculties.js";
 import { DEMO_USERS, getUserFaculty, ROLES } from "./data/users.js";
+import { REGISTRY } from "./data/students.js";
 import LoginPage from "./components/LoginPage.jsx";
 import StudentPhoto from "./components/StudentPhoto.jsx";
 import { parseStudentCSV, parseYearFromIndex, buildImageUrl, resolveFacultyCode } from "./utils/csvParser.js";
@@ -607,7 +608,9 @@ function MatchCard({ match, currentUser }) {
   const [zoomImg, setZoomImg] = useState(null);
 
   const rawMatched = s !== null;
-  const isAuthorizedMatch = rawMatched && (isGlobalAdmin || s.facultyId === currentUser?.facultyId);
+  const studentFacultyCode = resolveFacultyCode(s?.facultyId || s?.faculty || s?.id);
+  const userFacultyCode = resolveFacultyCode(currentUser?.facultyId);
+  const isAuthorizedMatch = rawMatched && (isGlobalAdmin || (studentFacultyCode && userFacultyCode && studentFacultyCode === userFacultyCode));
 
   return (
     <div style={{
@@ -764,7 +767,7 @@ function MatchCard({ match, currentUser }) {
                 <StudentPhoto regno={s.id} initials={s.initials} size={36} color={s.accentColor} flagged={s.flagged} photoUrl={referencePhotoUrl || s.photoUrl} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
-                  <div style={{ fontSize: 10, color: C.muted }}>{s.faculty || s.facultyId || "Student"}{s.year ? ` · Year ${s.year}` : ""}</div>
+                  <div style={{ fontSize: 10, color: C.muted }}>{getFacultyById(s.facultyId || s.faculty)?.name || s.faculty || s.facultyId || "Student"}{s.year ? ` · Year ${s.year}` : ""}</div>
                 </div>
                 {!s.name?.includes(s.id) && (
                   <div style={{ marginLeft: "auto", flexShrink: 0 }}>
@@ -1082,16 +1085,21 @@ function IdentifyPage({ currentUser, setPage, students = [], setStudents, regist
               })();
               const refUrl = m.referencePhotoUrl || enrolledMatch?.photoUrl || localPhoto || null;
 
+              const facCode = resolveFacultyCode(m.faculty || enrolledMatch?.facultyId || enrolledMatch?.faculty || prefix);
+              const facObj = getFacultyById(facCode);
+              const facName = facObj?.name || m.faculty || facCode;
+
               return {
                 faceIdx: idx,
                 faceLabel: m.faceLabel || `Face #${idx + 1}`,
                 matchedStudent: sid ? {
                   id: sid,
                   name: name,
-                  facultyId: m.faculty || prefix,
+                  facultyId: facCode,
+                  faculty: facName,
                   year: yearVal,
                   initials: (name || sid).split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
-                  accentColor: "#3B82F6",
+                  accentColor: facObj?.color || "#3B82F6",
                   photoUrl: refUrl || buildImageUrl(sid),
                 } : null,
                 confidence: confValue,
@@ -1119,6 +1127,9 @@ function IdentifyPage({ currentUser, setPage, students = [], setStudents, regist
               } catch(e) { return null; }
             })();
             const refUrl = payload.referencePhotoUrl || enrolledMatch?.photoUrl || localPhoto || null;
+            const facCode = resolveFacultyCode(payload.faculty || enrolledMatch?.facultyId || enrolledMatch?.faculty || prefix);
+            const facObj = getFacultyById(facCode);
+            const facName = facObj?.name || payload.faculty || facCode;
 
             formattedMatches.push({
               faceIdx: 0,
@@ -1126,10 +1137,11 @@ function IdentifyPage({ currentUser, setPage, students = [], setStudents, regist
               matchedStudent: {
                 id: sid,
                 name: payload.name || `Student (${sid})`,
-                facultyId: payload.faculty || prefix,
+                facultyId: facCode,
+                faculty: facName,
                 year: yearVal,
                 initials: (payload.name || sid).split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
-                accentColor: "#3B82F6",
+                accentColor: facObj?.color || "#3B82F6",
                 photoUrl: refUrl || buildImageUrl(sid),
               },
               confidence: confValue,
@@ -1649,7 +1661,10 @@ function FacultyDashboard({ setPage, currentUser, students = [], incidents = [] 
   const [studentSearch, setStudentSearch] = useState("");
 
   // Strict Faculty Student Filtering
-  const facultyStudents = students.filter(s => s.facultyId === currentUser?.facultyId);
+  const facultyStudents = students.filter(s => {
+    const sCode = resolveFacultyCode(s.facultyId || s.faculty || s.id);
+    return sCode === currentUser?.facultyId;
+  });
   const filteredStudents = facultyStudents.filter(s =>
     (s.name || "").toLowerCase().includes(studentSearch.toLowerCase()) ||
     (s.id || "").toLowerCase().includes(studentSearch.toLowerCase())
@@ -2072,7 +2087,8 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
 
   const scopedStudents = students.filter(s => {
     if (isGlobalAdmin) return true;
-    return s.facultyId === currentUser?.facultyId;
+    const sCode = resolveFacultyCode(s.facultyId || s.faculty || s.id);
+    return sCode === currentUser?.facultyId;
   });
 
   const filtered = scopedStudents.filter(s =>
@@ -2799,7 +2815,7 @@ export default function App() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {}
-    return REGISTRY;
+    return Array.isArray(REGISTRY) ? REGISTRY : [];
   });
   const [registryCount, setRegistryCount] = useState(() => {
     try {

@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { X, Upload, CheckCircle, AlertCircle, ScanFace, Sparkles } from "lucide-react";
-import { UOP_FACULTIES } from "../data/faculties.js";
-import { parseYearFromIndex } from "../utils/csvParser.js";
+import { UOP_FACULTIES, getFacultyById } from "../data/faculties.js";
+import { parseYearFromIndex, resolveFacultyCode } from "../utils/csvParser.js";
 
 const C = {
   bg:      "#07090F",
@@ -23,7 +23,7 @@ const C = {
 export default function EnrollStudentModal({ isOpen, onClose, onEnrolled, students = [] }) {
   const [studentId, setStudentId] = useState("");
   const [fullName, setFullName] = useState("");
-  const [faculty, setFaculty] = useState("Engineering");
+  const [faculty, setFaculty] = useState("Faculty of Engineering");
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -40,7 +40,14 @@ export default function EnrollStudentModal({ isOpen, onClose, onEnrolled, studen
     if (existing) {
       if (existing.name) setFullName(existing.name);
       if (existing.faculty || existing.facultyId) {
-        setFaculty(existing.faculty || existing.facultyId);
+        const facObj = getFacultyById(existing.facultyId || existing.faculty);
+        setFaculty(facObj?.name || existing.faculty || existing.facultyId);
+      }
+    } else if (id.includes("/")) {
+      const code = resolveFacultyCode(id);
+      const facObj = getFacultyById(code);
+      if (facObj && facObj.name && facObj.code !== "UNK") {
+        setFaculty(facObj.name);
       }
     }
   };
@@ -102,12 +109,16 @@ export default function EnrollStudentModal({ isOpen, onClose, onEnrolled, studen
 
       setSuccess(`✓ Successfully registered ${fullName} with ${data.embeddings_generated || 6} ArcFace biometric embeddings!`);
 
+      const facCode = resolveFacultyCode(faculty);
+      const facObj = getFacultyById(facCode);
+
       const enrolledStudent = {
         id: studentId.trim(),
         regno: studentId.trim(),
         name: fullName.trim(),
-        facultyId: faculty,
-        faculty: faculty,
+        facultyId: facCode,
+        faculty: facObj?.name || faculty,
+        accentColor: facObj?.color || "#3B82F6",
         year: parsedYear,
         initials: fullName.trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
         photoUrl: imagePreview,

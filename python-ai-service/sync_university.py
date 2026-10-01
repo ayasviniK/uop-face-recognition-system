@@ -78,25 +78,39 @@ SYNC_SCHEDULE = [
 ]
 
 FACULTY_MAP = {
-    "A":   "Arts",
-    "ART": "Arts",
-    "AG":  "Agriculture",
-    "AGR": "Agriculture",
-    "AHS": "Allied Health Sciences",
-    "E":   "Engineering",
-    "ENG": "Engineering",
-    "M":   "Medicine",
-    "MED": "Medicine",
-    "S":   "Science",
-    "SCI": "Science",
-    "VS":  "Veterinary Medicine",
-    "VM":  "Veterinary Medicine",
-    "VET": "Veterinary Medicine",
-    "D":   "Dentistry",
-    "DT":  "Dental Technology",
-    "DEN": "Dentistry",
-    "MG":  "Management",
-    "MGT": "Management",
+    "A":                   "Arts",
+    "ART":                 "Arts",
+    "ARTS":                "Arts",
+    "AG":                  "Agriculture",
+    "AGR":                 "Agriculture",
+    "AGRI":                "Agriculture",
+    "AGRICULTURE":         "Agriculture",
+    "AHS":                 "Allied Health Sciences",
+    "AH":                  "Allied Health Sciences",
+    "ALLIED":              "Allied Health Sciences",
+    "ALLIED HEALTH":       "Allied Health Sciences",
+    "E":                   "Engineering",
+    "ENG":                 "Engineering",
+    "ENGINEERING":         "Engineering",
+    "M":                   "Medicine",
+    "MED":                 "Medicine",
+    "MEDICINE":            "Medicine",
+    "S":                   "Science",
+    "SCI":                 "Science",
+    "SCIENCE":             "Science",
+    "VS":                  "Veterinary Medicine",
+    "VM":                  "Veterinary Medicine",
+    "VET":                 "Veterinary Medicine",
+    "VETERINARY":          "Veterinary Medicine",
+    "D":                   "Dentistry",
+    "DT":                  "Dentistry",
+    "DEN":                 "Dentistry",
+    "DENT":                "Dentistry",
+    "DENTAL":              "Dentistry",
+    "DENTISTRY":           "Dentistry",
+    "MG":                  "Management",
+    "MGT":                 "Management",
+    "MANAGEMENT":          "Management",
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -104,12 +118,45 @@ FACULTY_MAP = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 def parse_faculty(reg_no: str) -> str:
-    prefix = reg_no.split("/")[0].upper().strip()
-    faculty = FACULTY_MAP.get(prefix)
-    if not faculty:
-        print(f"    Unknown faculty prefix: '{prefix}' — storing as '{prefix}'")
-        return prefix
-    return faculty
+    if not reg_no:
+        return "Unknown"
+    clean = str(reg_no).strip().upper()
+    if clean in FACULTY_MAP:
+        return FACULTY_MAP[clean]
+    if "ALLIED" in clean or "AHS" in clean:
+        return "Allied Health Sciences"
+    if "AGRICULTURE" in clean or "AGRI" in clean:
+        return "Agriculture"
+    if "MANAGEMENT" in clean:
+        return "Management"
+    if "VETERINARY" in clean:
+        return "Veterinary Medicine"
+    if "DENTISTRY" in clean or "DENTAL" in clean:
+        return "Dentistry"
+    if "ENGINEERING" in clean:
+        return "Engineering"
+    if "MEDICINE" in clean:
+        return "Medicine"
+    if "SCIENCE" in clean:
+        return "Science"
+
+    import re
+    tokens = re.split(r'[/_\-\.\s]+', clean)
+    for t in tokens:
+        if len(t) > 1 and t in FACULTY_MAP:
+            return FACULTY_MAP[t]
+    if tokens and len(tokens[0]) == 1 and tokens[0] in FACULTY_MAP:
+        return FACULTY_MAP[tokens[0]]
+    for t in tokens:
+        if len(t) == 1 and t in FACULTY_MAP:
+            return FACULTY_MAP[t]
+
+    m = re.match(r'^([A-Z]+)', clean)
+    if m and m.group(1) in FACULTY_MAP:
+        return FACULTY_MAP[m.group(1)]
+
+    print(f"    Unknown faculty prefix for: '{reg_no}'")
+    return "Unknown"
 
 
 def parse_year(reg_no: str) -> int | None:
