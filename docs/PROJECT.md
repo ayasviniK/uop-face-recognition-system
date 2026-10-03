@@ -267,14 +267,3 @@ Start services in this order:
 
 Access the dashboard at `http://localhost:5173`
 Login: `admin` / `adminpassword`
-
----
-
-## Project Repository
-
-https://github.com/ayasviniK/uop-face-recognition-system
-
-**Branches:**
-- `main` — current working state of all three components
-- `backend-dev` — older backend development branch (superseded by main)
-- `feature/ai-pipeline` — older AI development branch (superseded by main)
