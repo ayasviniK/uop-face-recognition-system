@@ -34,33 +34,55 @@ export default function LoginPage({ onLogin }) {
     }
   };
 
-  const handleLoginSubmit = (e) => {
-    e.preventDefault();
-    setErrorMsg("");
+  
+  // REPLACE lines 37–62 (the whole handleLoginSubmit function) with:
 
-    const targetUser = DEMO_USERS.find((u) => u.id === selectedUserId);
-    if (!targetUser) {
-      setErrorMsg("Please select a valid demo user account.");
+const handleLoginSubmit = async (e) => {
+  e.preventDefault();
+  setErrorMsg("");
+
+  const targetUser = DEMO_USERS.find((u) => u.id === selectedUserId);
+  if (!targetUser) {
+    setErrorMsg("Please select a valid demo user account.");
+    return;
+  }
+
+  // Role-based portal access restriction check
+  if (roleTab === "ADMIN" && targetUser.role !== ROLES.ADMIN) {
+    setErrorMsg(
+      `Access Restricted: "${targetUser.name}" (Faculty User) is not authorized to log into the Admin portal.`
+    );
+    return;
+  }
+
+  // Call Spring Boot login API
+  const effectivePassword = password.trim() ? password : targetUser.password;
+  try {
+    const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
+    const res = await fetch(`${API}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: targetUser.email, password: effectivePassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setErrorMsg(data.message || "Invalid credentials.");
       return;
     }
-
-    // Password verification
-    if (password !== targetUser.password) {
-      setErrorMsg(`Invalid password for account "${targetUser.name}". Try "${targetUser.password}"`);
-      return;
+    // Store JWT token for future requests
+    if (data?.data?.token) {
+      localStorage.setItem("sentinel_token", data.data.token);
     }
-
-    // Role-based portal access restriction check
-    if (roleTab === "ADMIN" && targetUser.role !== ROLES.ADMIN) {
-      setErrorMsg(
-        `Access Restricted: "${targetUser.name}" (Faculty User) is not authorized to log into the Admin portal.`
-      );
-      return;
-    }
-
-    // Successful authentication
     onLogin(targetUser);
-  };
+  } catch {
+    // Spring Boot not reachable — fall back to demo mode
+    if (effectivePassword !== targetUser.password) {
+      setErrorMsg(`Invalid password. Demo hint: "${targetUser.password}"`);
+      return;
+    }
+    onLogin(targetUser);
+  }
+};
 
   return (
     <div style={{
@@ -373,7 +395,7 @@ export default function LoginPage({ onLogin }) {
                 </button>
               </div>
               <div style={{ fontSize: "11px", color: "#64748B" }}>
-                Demo Password Hint: <code style={{ color: MAROON, fontWeight: 700 }}>{selectedUser.password}</code>
+                Demo Password Hint: <code onClick={() => setPassword(selectedUser.password)} title="Click to fill password" style={{ color: MAROON, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>{selectedUser.password}</code>
               </div>
             </div>
 

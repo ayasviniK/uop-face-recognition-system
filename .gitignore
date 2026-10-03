@@ -58,6 +58,12 @@ cover/
 # Django stuff:
 *.log
 local_settings.py
+
+# Environments
+.env
+.env.*
+!.env.example
+
 db.sqlite3
 db.sqlite3-journal
 
@@ -216,3 +222,21 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# HTTP test files
+test.http
+Face/
+NOTES.md
+internal_architecture.md
+
+# Sensitive local configurations and databases
+*.env
+*.env.*
+!*.env.example
+!env.example
+python-ai-service/data/
+python-ai-service/logs/
+python-ai-service/student_images/
+python-ai-service/uploads/
+springboot-backend/backend/.env
+data/mock_db.json

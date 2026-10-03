@@ -1,0 +1,22 @@
+{
+  "java.jdt.ls.java.home": "C:\\Program Files\\Android\\openjdk\\jdk-21.0.8",
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-21",
+      "path": "C:\\Program Files\\Android\\openjdk\\jdk-21.0.8",
+      "default": true
+    }
+  ],
+  "java.import.maven.enabled": true,
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.autobuild.enabled": true,
+  "python.defaultInterpreterPath": "C:\\Users\\nikin\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/python-ai-service"
+  ],
+  "git.openRepositoryInParentFolders": "never",
+  "git.ignoredRepositories": [
+    "C:\\Users\\nikin",
+    "c:\\Users\\nikin"
+  ]
+}
