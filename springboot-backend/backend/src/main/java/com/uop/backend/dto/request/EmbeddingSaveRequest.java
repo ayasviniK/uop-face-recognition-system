@@ -10,15 +10,12 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@Builder
 @NoArgsConstructor
-@AllArgsConstructor
 public class EmbeddingSaveRequest {
 
     @NotBlank(message = "studentId is mandatory")
@@ -34,7 +31,6 @@ public class EmbeddingSaveRequest {
 
     @Min(value = 1, message = "tier must be 1 or 2")
     @Max(value = 2, message = "tier must be 1 or 2")
-    @Builder.Default
     private Integer tier = 1;
 
     @NotNull(message = "Original embedding is mandatory")
@@ -82,4 +78,25 @@ public class EmbeddingSaveRequest {
     @JsonProperty("embeddingRight2")
     @JsonAlias({"embedding_right_2", "right2Embedding", "right_2_embedding"})
     private List<Double> embeddingRight2;
+
+    @Builder
+    public EmbeddingSaveRequest(String studentId, String faculty, Integer tier,
+            List<Double> embeddingOriginal, List<Double> embeddingFlipped, List<Double> embeddingBrighter,
+            List<Double> embeddingDarker, List<Double> embeddingRotatedPlus, List<Double> embeddingRotatedMinus,
+            List<Double> embeddingLeft1, List<Double> embeddingLeft2, List<Double> embeddingRight1,
+            List<Double> embeddingRight2) {
+        this.studentId = studentId;
+        this.faculty = faculty;
+        this.tier = tier != null ? tier : 1;
+        this.embeddingOriginal = embeddingOriginal;
+        this.embeddingFlipped = embeddingFlipped;
+        this.embeddingBrighter = embeddingBrighter;
+        this.embeddingDarker = embeddingDarker;
+        this.embeddingRotatedPlus = embeddingRotatedPlus;
+        this.embeddingRotatedMinus = embeddingRotatedMinus;
+        this.embeddingLeft1 = embeddingLeft1;
+        this.embeddingLeft2 = embeddingLeft2;
+        this.embeddingRight1 = embeddingRight1;
+        this.embeddingRight2 = embeddingRight2;
+    }
 }

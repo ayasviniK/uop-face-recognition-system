@@ -1,20 +1,25 @@
 package com.uop.backend.dto;
 
 import java.util.List;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class ApiResponse<T> {
     private boolean success;
     private String message;
     private T data;
     private List<String> errors;
+
+    @Builder
+    public ApiResponse(boolean success, String message, T data, List<String> errors) {
+        this.success = success;
+        this.message = message;
+        this.data = data;
+        this.errors = errors;
+    }
 
     public static <T> ApiResponse<T> success(T data, String message) {
         return ApiResponse.<T>builder()

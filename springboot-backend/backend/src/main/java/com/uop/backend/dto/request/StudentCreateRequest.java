@@ -4,15 +4,12 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@Builder
 @NoArgsConstructor
-@AllArgsConstructor
 public class StudentCreateRequest {
 
     @NotBlank(message = "studentId is mandatory")
@@ -24,6 +21,12 @@ public class StudentCreateRequest {
 
     @Min(value = 1, message = "tier must be 1 or 2")
     @Max(value = 2, message = "tier must be 1 or 2")
-    @Builder.Default
     private Integer tier = 1;
+
+    @Builder
+    public StudentCreateRequest(String studentId, String faculty, Integer tier) {
+        this.studentId = studentId;
+        this.faculty = faculty;
+        this.tier = tier != null ? tier : 1;
+    }
 }

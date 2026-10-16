@@ -12,7 +12,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -21,8 +20,6 @@ import lombok.NoArgsConstructor;
 @Table(name = "embeddings")
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class Embedding {
 
     @Id
@@ -74,6 +71,27 @@ public class Embedding {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Builder
+    public Embedding(String studentId, List<Double> embeddingOriginal, List<Double> embeddingFlipped,
+            List<Double> embeddingBrighter, List<Double> embeddingDarker, List<Double> embeddingRotatedPlus,
+            List<Double> embeddingRotatedMinus, List<Double> embeddingLeft1, List<Double> embeddingLeft2,
+            List<Double> embeddingRight1, List<Double> embeddingRight2, LocalDateTime generatedAt,
+            LocalDateTime updatedAt) {
+        this.studentId = studentId;
+        this.embeddingOriginal = embeddingOriginal;
+        this.embeddingFlipped = embeddingFlipped;
+        this.embeddingBrighter = embeddingBrighter;
+        this.embeddingDarker = embeddingDarker;
+        this.embeddingRotatedPlus = embeddingRotatedPlus;
+        this.embeddingRotatedMinus = embeddingRotatedMinus;
+        this.embeddingLeft1 = embeddingLeft1;
+        this.embeddingLeft2 = embeddingLeft2;
+        this.embeddingRight1 = embeddingRight1;
+        this.embeddingRight2 = embeddingRight2;
+        this.generatedAt = generatedAt;
+        this.updatedAt = updatedAt;
+    }
 
     @PrePersist
     protected void onCreate() {

@@ -9,7 +9,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -18,8 +17,6 @@ import lombok.NoArgsConstructor;
 @Table(name = "sync_log")
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class SyncLog {
 
     @Id
@@ -29,24 +26,32 @@ public class SyncLog {
     @Column(name = "synced_at")
     private LocalDateTime syncedAt;
 
-    @Builder.Default
     @Column(name = "students_added")
     private Integer studentsAdded = 0;
 
-    @Builder.Default
     @Column(name = "students_updated")
     private Integer studentsUpdated = 0;
 
-    @Builder.Default
     @Column(name = "students_tiered_down")
     private Integer studentsTieredDown = 0;
 
-    @Builder.Default
     @Column(name = "status", length = 20)
     private String status = "success";
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
+
+    @Builder
+    public SyncLog(Long id, LocalDateTime syncedAt, Integer studentsAdded, Integer studentsUpdated,
+            Integer studentsTieredDown, String status, String notes) {
+        this.id = id;
+        this.syncedAt = syncedAt;
+        this.studentsAdded = studentsAdded != null ? studentsAdded : 0;
+        this.studentsUpdated = studentsUpdated != null ? studentsUpdated : 0;
+        this.studentsTieredDown = studentsTieredDown != null ? studentsTieredDown : 0;
+        this.status = status != null ? status : "success";
+        this.notes = notes;
+    }
 
     @PrePersist
     protected void onCreate() {

@@ -8,7 +8,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,8 +16,6 @@ import lombok.NoArgsConstructor;
 @Table(name = "students")
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class Student {
 
     @Id
@@ -28,7 +25,6 @@ public class Student {
     @Column(name = "faculty", nullable = false, length = 100)
     private String faculty;
 
-    @Builder.Default
     @Column(name = "tier", nullable = false)
     private Integer tier = 1;
 
@@ -37,6 +33,15 @@ public class Student {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Builder
+    public Student(String studentId, String faculty, Integer tier, LocalDateTime syncedAt, LocalDateTime updatedAt) {
+        this.studentId = studentId;
+        this.faculty = faculty;
+        this.tier = tier != null ? tier : 1;
+        this.syncedAt = syncedAt;
+        this.updatedAt = updatedAt;
+    }
 
     @PrePersist
     protected void onCreate() {
