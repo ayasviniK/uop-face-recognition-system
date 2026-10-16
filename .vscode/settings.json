@@ -19,5 +19,8 @@
     "${workspaceFolder}/python-ai-service"
   ],
   "git.openRepositoryInParentFolders": "never",
-  "python.terminal.useEnvFile": true
+  "python.terminal.useEnvFile": true,
+  "java.compile.annotationProcessing.enabled": true,
+  "java.jdt.ls.lombokSupport.enabled": true,
+  "java.jdt.ls.vmargs": "-javaagent:\"C:/Users/PUAAViC/.m2/repository/org/projectlombok/lombok/1.18.36/lombok-1.18.36.jar\""
 }
