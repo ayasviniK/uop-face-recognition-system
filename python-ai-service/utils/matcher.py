@@ -11,7 +11,7 @@ best score per student (deduplication).
 
 import numpy as np
 
-SIMILARITY_THRESHOLD = 0.25
+SIMILARITY_THRESHOLD = 0.15
 
 
 def cosine_similarity(embedding_a, embedding_b) -> float:
@@ -72,7 +72,7 @@ def _score_to_label(score: float) -> str:
         return "High"
     elif score >= 0.4:
         return "Medium"
-    elif score >= 0.25:
+    elif score >= 0.15:
         return "Low"
     else:
         return "No Match"

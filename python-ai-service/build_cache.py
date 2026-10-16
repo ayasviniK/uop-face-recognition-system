@@ -7,14 +7,18 @@ import numpy as np
 
 def build_embeddings_cache():
     print("Connecting to MySQL...")
-    t0 = time.time()
+    user = os.environ.get("DB_USERNAME", "root")
+    password = os.environ.get("DB_PASSWORD", "123Root")
+    db_name = os.environ.get("DB_NAME", "uop_db")
+    host = os.environ.get("DB_HOST", "localhost")
     conn = pymysql.connect(
-        host="localhost",
-        user="root",
-        password="123Root",
-        db="uop_db",
+        host=host,
+        user=user,
+        password=password,
+        db=db_name,
         cursorclass=SSCursor
     )
+    t0 = time.time()
     cur = conn.cursor()
     print("Streaming embeddings from MySQL...")
     cur.execute("SELECT student_id, embedding_original FROM embeddings")

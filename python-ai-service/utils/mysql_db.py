@@ -101,7 +101,7 @@ class VectorCandidates:
             score = float(sims[idx])
             sid = str(self.sids[idx])
             faculty = sid.split("/")[0].upper() if sid else "UNKNOWN"
-            label = "High" if score >= 0.6 else ("Medium" if score >= 0.4 else ("Low" if score >= 0.25 else "No Match"))
+            label = "High" if score >= 0.6 else ("Medium" if score >= 0.4 else ("Low" if score >= 0.15 else "No Match"))
             matches.append({
                 "student_id": sid,
                 "student_name": f"Student ({sid})",

@@ -6,3 +6,5 @@ insightface
 onnxruntime
 requests
 python-dotenv
+pymysql
+cryptography

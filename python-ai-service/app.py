@@ -726,7 +726,7 @@ def api_recognize():
         best = top[0] if top else None
         # Real-world ArcFace similarity between different photos typically ranges 0.45 - 0.70.
         # >= 0.60 is High, 0.40 - 0.59 is Medium. Setting threshold to 0.25 avoids false negative rejections on ID cards.
-        MATCH_THRESHOLD = 0.25
+        MATCH_THRESHOLD = 0.15
         is_confirmed = bool(best and best.get("similarity_score", 0) >= MATCH_THRESHOLD)
 
         sid = best["student_id"] if (best and is_confirmed) else None
