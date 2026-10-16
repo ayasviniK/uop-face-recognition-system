@@ -61,7 +61,7 @@ from utils.audit_logger import log_identification, log_registration, get_recent_
 from sync_university import read_csv, run_sync
 
 app = Flask(__name__)
-USE_MOCK_DB = os.environ.get("USE_MOCK_DB", "false").lower() in ("1", "true", "yes")
+USE_MOCK_DB = os.environ.get("USE_MOCK_DB", "true").lower() in ("1", "true", "yes")
 
 
 def active_embeddings() -> list[dict]:
