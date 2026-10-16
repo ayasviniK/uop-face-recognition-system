@@ -1,6 +1,7 @@
 """Spring Boot/MySQL adapter for the Flask AI service."""
 
 import os
+import json
 from typing import Any
 
 import requests
@@ -68,7 +69,7 @@ class VectorCandidates:
     def __getitem__(self, idx):
         return {"student_id": self.sids[idx], "embedding": self.embs[idx]}
 
-    def add_vector(self, student_id, vector):
+    def add_vector(self, student_id, vector, verbose=False):
         if vector is None:
             return
         v = np.array(vector, dtype=np.float32).flatten()
@@ -85,7 +86,8 @@ class VectorCandidates:
                 self.embs = v.reshape(1, -1)
             else:
                 self.embs = np.vstack([self.embs, v.reshape(1, -1)])
-        print(f"✓ Cached embedding updated for student {sid_str} (total in cache: {len(self.sids)})")
+        if verbose:
+            print(f"[CACHE] Embedding updated for student {sid_str} (total in cache: {len(self.sids)})")
 
     def search(self, query_vec, top_k=5):
         if len(self.sids) == 0:
@@ -117,12 +119,32 @@ class VectorCandidates:
 _CACHED_VECTORS = None
 
 
-def add_candidate_vector(student_id: str, vector):
+def add_candidate_vector(student_id: str, vector, verbose=True):
     global _CACHED_VECTORS
     if _CACHED_VECTORS is None:
         get_embeddings()
     if _CACHED_VECTORS is not None:
-        _CACHED_VECTORS.add_vector(student_id, vector)
+        _CACHED_VECTORS.add_vector(student_id, vector, verbose=verbose)
+
+
+def _merge_mock_db_into_candidates(candidates: VectorCandidates) -> None:
+    mock_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "mock_db.json")
+    if not os.path.exists(mock_file):
+        return
+    try:
+        with open(mock_file, "r", encoding="utf-8") as f:
+            mock_data = json.load(f)
+        added_count = 0
+        for sid, info in mock_data.get("staff", {}).items():
+            for emb in info.get("embeddings", []):
+                v = emb.get("embedding")
+                if v:
+                    candidates.add_vector(sid, v, verbose=False)
+                    added_count += 1
+        if added_count > 0:
+            print(f"[CACHE] Merged {added_count} embedding vectors from mock_db into vector cache")
+    except Exception as me:
+        print(f"Notice loading mock_db additions: {me}")
 
 
 def get_embeddings():
@@ -135,6 +157,7 @@ def get_embeddings():
         try:
             data = np.load(cache_file)
             _CACHED_VECTORS = VectorCandidates(data["student_ids"], data["embeddings"])
+            _merge_mock_db_into_candidates(_CACHED_VECTORS)
             return _CACHED_VECTORS
         except Exception as e:
             print(f"Error loading {cache_file}: {e}")

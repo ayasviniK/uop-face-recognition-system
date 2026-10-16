@@ -6,7 +6,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -15,8 +14,6 @@ import lombok.NoArgsConstructor;
 @Table(name = "admins")
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class Admin {
 
     @Id
@@ -28,4 +25,11 @@ public class Admin {
 
     @Column(name = "password", nullable = false, length = 255)
     private String password;
+
+    @Builder
+    public Admin(Long id, String username, String password) {
+        this.id = id;
+        this.username = username;
+        this.password = password;
+    }
 }
