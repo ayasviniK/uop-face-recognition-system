@@ -1513,7 +1513,7 @@ function AdminDashboard({ setPage, currentUser: _currentUser, students = [], inc
 
       {/* Central System Stats */}
       {(() => {
-        const totalCampusStudents = registryCount || 0;
+        const totalCampusStudents = Math.max(registryCount || 0, students?.length || 0);
         return (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
             <StatCard icon={Users} label="Total Campus Students" value={totalCampusStudents.toLocaleString()} trend={0} color={C.accent} sub="Registered in System" />
@@ -1864,8 +1864,9 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
 
   const [csvStudents, setCsvStudents] = useState([]);
   const [csvFile, setCsvFile] = useState(null);
+  const [isCheckingSync, setIsCheckingSync] = useState(false);
   const [csvFileName, setCsvFileName] = useState("");
-  const [csvError, setCsvError] = useState("");
+  const [csvStatus, setCsvStatus] = useState(null);
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState({ duplicates: [], newCount: 0 });
   const [enrollModalOpen, setEnrollModalOpen] = useState(false);
@@ -1914,7 +1915,7 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
 
   const handleCSVUpload = (file) => {
     if (!file) return;
-    setCsvError("");
+    setCsvStatus(null);
     setCsvFile(file);
     setCsvFileName(file.name);
     const reader = new FileReader();
@@ -1922,7 +1923,10 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
       try {
         const parsed = parseStudentCSV(e.target.result);
         if (parsed.length === 0) {
-          setCsvError("No valid students found. Check that your CSV has headers: regno, name, faculty");
+          setCsvStatus({
+            type: "error",
+            text: "No valid students found. Check that your CSV has headers: regno, name, faculty ❌"
+          });
           return;
         }
         setCsvStudents(parsed);
@@ -1939,67 +1943,84 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
 
         const notes = [];
         if (internalDupes > 0) {
-          notes.push(`Loaded ${parsed.length.toLocaleString()} unique students from ${totalRows.toLocaleString()} rows (${internalDupes.toLocaleString()} duplicate entries in the file were automatically merged).`);
-        }
-        if (notes.length > 0) {
-          setCsvError(`ℹ Notice: ${notes.join(" ")}`);
+          notes.push(`Loaded ${parsed.length.toLocaleString()} unique students from ${totalRows.toLocaleString()} rows (${internalDupes.toLocaleString()} duplicate entries in the file were automatically merged) ℹ️`);
+          setCsvStatus({
+            type: "info",
+            text: notes.join(" ")
+          });
+        } else {
+          setCsvStatus({
+            type: "success",
+            text: `CSV file loaded successfully! ${parsed.length.toLocaleString()} student records ready for sync ✨`
+          });
         }
       } catch (err) {
-        setCsvError("Failed to parse CSV: " + err.message);
+        setCsvStatus({
+          type: "error",
+          text: `Failed to parse CSV: ${err.message} ❌`
+        });
       }
     };
     reader.readAsText(file);
   };
 
   const handleSyncBatch = async () => {
-    // Check for duplicates before starting sync
-    const token = localStorage.getItem("sentinel_token") || "";
-    const regNumbers = csvStudents.map(s => s.id);
+    if (isCheckingSync || syncStage === "syncing" || csvStudents.length === 0) return;
+    setIsCheckingSync(true);
 
-    // 1. Check against active registry
-    // Check the authoritative MySQL-backed API; do not use cached frontend records.
-    let remoteDupes = [];
     try {
-      let res = null;
+      // Check for duplicates before starting sync
+      const token = localStorage.getItem("sentinel_token") || "";
+      const regNumbers = csvStudents.map(s => s.id);
+
+      // 1. Check against active registry
+      // Check the authoritative MySQL-backed API; do not use cached frontend records.
+      let remoteDupes = [];
       try {
-        res = await fetch("/api/students/check-duplicates", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ regNumbers }),
-        });
-      } catch (e) {
-        // network error
+        let res = null;
+        try {
+          res = await fetch("/api/students/check-duplicates", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ regNumbers }),
+          });
+        } catch (e) {
+          // network error
+        }
+
+        if (!res || !res.ok) {
+          res = await fetch("http://localhost:5000/api/students/check-duplicates", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ regNumbers }),
+          });
+        }
+
+        if (res && res.ok) {
+          const data = await res.json();
+          remoteDupes = data.duplicates || [];
+        }
+      } catch (err) {
+        console.warn("Backend duplicate check offline, using local registry:", err);
       }
 
-      if (!res || !res.ok) {
-        res = await fetch("http://localhost:5000/api/students/check-duplicates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ regNumbers }),
-        });
+      const allDupes = Array.from(new Set(remoteDupes));
+      if (allDupes.length > 0) {
+        const newCount = Math.max(0, regNumbers.length - allDupes.length);
+        setDuplicateInfo({ duplicates: allDupes, newCount });
+        setShowDuplicateDialog(true);
+        setIsCheckingSync(false);
+        return;
       }
 
-      if (res && res.ok) {
-        const data = await res.json();
-        remoteDupes = data.duplicates || [];
-      }
-    } catch (err) {
-      console.warn("Backend duplicate check offline, using local registry:", err);
+      // No duplicates — proceed with sync
+      await startSync(false);
+    } finally {
+      setIsCheckingSync(false);
     }
-
-    const allDupes = Array.from(new Set(remoteDupes));
-    if (allDupes.length > 0) {
-      const newCount = Math.max(0, regNumbers.length - allDupes.length);
-      setDuplicateInfo({ duplicates: allDupes, newCount });
-      setShowDuplicateDialog(true);
-      return;
-    }
-
-    // No duplicates — proceed with sync
-    startSync(false);
   };
 
   const startSync = async (replace) => {
@@ -2037,14 +2058,42 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
         if (setRegistryCount) setRegistryCount(prev => prev + (data.added || 0));
         return updated;
       });
-      const failures = (data.noFace || 0) + (data.failed || 0);
-      setCsvError(failures > 0
-        ? `Sync completed with ${failures} students needing attention. Added: ${data.added || 0}, replaced: ${data.replaced || 0}, skipped: ${data.skipped || 0}.`
-        : `Sync completed. Added: ${data.added || 0}, replaced: ${data.replaced || 0}, skipped: ${data.skipped || 0}.`);
+      const added = data.added || 0;
+      const replaced = data.replaced || 0;
+      const skipped = data.skipped || 0;
+      const noFace = data.noFace || 0;
+      const failed = data.failed || 0;
+      const failures = noFace + failed;
+      const totalSuccess = added + replaced;
+
+      if (totalSuccess > 0 && failures === 0) {
+        setCsvStatus({
+          type: "success",
+          text: `Sync completed successfully! ${totalSuccess} student${totalSuccess === 1 ? "" : "s"} uploaded and enrolled into database 🎉`
+        });
+      } else if (totalSuccess > 0 && failures > 0) {
+        setCsvStatus({
+          type: "success",
+          text: `Sync completed! ${totalSuccess} student${totalSuccess === 1 ? "" : "s"} uploaded successfully 🎉 (${failures} student${failures === 1 ? "" : "s"} could not be synced due to missing or unclear face photos in university photo DB ℹ️)`
+        });
+      } else if (totalSuccess === 0 && failures === 0) {
+        setCsvStatus({
+          type: "info",
+          text: `All ${skipped} student${skipped === 1 ? "" : "s"} already exist in database and are up to date ℹ️`
+        });
+      } else {
+        setCsvStatus({
+          type: "error",
+          text: `Sync could not enroll students. All ${failures} student(s) failed or had missing face photos ❌`
+        });
+      }
     } catch (e) {
       setSyncStage("idle");
       setCurrentStep(-1);
-      setCsvError(`Sync failed: ${e.message}`);
+      setCsvStatus({
+        type: "error",
+        text: `Sync failed: ${e.message} ❌`
+      });
     }
   };
 
@@ -2226,17 +2275,29 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
 
 
 
-            {csvError && (
+            {csvStatus && (
               <div style={{
                 fontSize: 12,
-                color: csvError.startsWith("ℹ") ? C.accent : csvError.startsWith("⚠") ? C.warning : C.danger,
-                padding: "9px 13px",
-                background: csvError.startsWith("ℹ") ? `${C.accent}15` : csvError.startsWith("⚠") ? `${C.warning}15` : `${C.danger}15`,
+                color: csvStatus.type === "success" ? C.success : csvStatus.type === "info" ? C.accent : csvStatus.type === "warning" ? C.warning : C.danger,
+                padding: "10px 14px",
+                background: csvStatus.type === "success" ? `${C.success}15` : csvStatus.type === "info" ? `${C.accent}15` : csvStatus.type === "warning" ? `${C.warning}15` : `${C.danger}15`,
                 borderRadius: 8,
-                border: `1px solid ${csvError.startsWith("ℹ") ? `${C.accent}40` : csvError.startsWith("⚠") ? `${C.warning}40` : `${C.danger}40`}`,
-                lineHeight: 1.4
+                border: `1px solid ${csvStatus.type === "success" ? `${C.success}40` : csvStatus.type === "info" ? `${C.accent}40` : csvStatus.type === "warning" ? `${C.warning}40` : `${C.danger}40`}`,
+                lineHeight: 1.5,
+                display: "flex",
+                alignItems: "center",
+                gap: 9
               }}>
-                {csvError}
+                {csvStatus.type === "success" ? (
+                  <CheckCircle size={16} color={C.success} style={{ flexShrink: 0 }} />
+                ) : csvStatus.type === "info" ? (
+                  <Info size={16} color={C.accent} style={{ flexShrink: 0 }} />
+                ) : csvStatus.type === "warning" ? (
+                  <AlertTriangle size={16} color={C.warning} style={{ flexShrink: 0 }} />
+                ) : (
+                  <AlertCircle size={16} color={C.danger} style={{ flexShrink: 0 }} />
+                )}
+                <span>{csvStatus.text}</span>
               </div>
             )}
 
@@ -2295,17 +2356,17 @@ function FacultySyncPage({ currentUser, students, setStudents, setPage, registry
             <button
               id="batch-sync-action-btn"
               onClick={handleSyncBatch}
-              disabled={syncStage === "syncing" || csvStudents.length === 0}
+              disabled={isCheckingSync || syncStage === "syncing" || csvStudents.length === 0}
               style={{
                 padding: "13px", borderRadius: 10, border: "none",
                 fontWeight: 800, fontSize: 13, color: "#fff",
-                cursor: csvStudents.length === 0 ? "not-allowed" : syncStage === "syncing" ? "default" : "pointer",
-                background: csvStudents.length === 0 ? C.border : `linear-gradient(135deg, ${activeFaculty.color || C.accent}, ${C.accentD})`,
-                opacity: csvStudents.length === 0 ? 0.6 : 1,
-                boxShadow: csvStudents.length === 0 ? "none" : `0 4px 14px ${activeFaculty.color || C.accent}30`,
+                cursor: (csvStudents.length === 0 || isCheckingSync || syncStage === "syncing") ? "not-allowed" : "pointer",
+                background: (csvStudents.length === 0 || isCheckingSync || syncStage === "syncing") ? C.border : `linear-gradient(135deg, ${activeFaculty.color || C.accent}, ${C.accentD})`,
+                opacity: (csvStudents.length === 0 || isCheckingSync || syncStage === "syncing") ? 0.6 : 1,
+                boxShadow: (csvStudents.length === 0 || isCheckingSync || syncStage === "syncing") ? "none" : `0 4px 14px ${activeFaculty.color || C.accent}30`,
                 transition: "all 0.2s"
               }}>
-              {syncStage === "syncing" ? "⚡ Processing batch & indexing…" : csvStudents.length === 0 ? "Upload CSV to Enable Sync" : `⚡ Sync ${csvStudents.length} Students → Identity Index`}
+              {isCheckingSync ? "🔍 Checking database duplicates…" : syncStage === "syncing" ? "⚡ Processing batch & indexing…" : csvStudents.length === 0 ? "Upload CSV to Enable Sync" : `⚡ Sync ${csvStudents.length} Students → Identity Index`}
             </button>
           </div>
 
@@ -2769,10 +2830,31 @@ const META = {
 };
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [page, setPage] = useState("identify");
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    try {
+      const savedAuth = localStorage.getItem("sentinel_authenticated");
+      const savedToken = localStorage.getItem("sentinel_token");
+      const savedUser = localStorage.getItem("sentinel_user");
+      return savedAuth === "true" || Boolean(savedToken && savedUser);
+    } catch (e) {
+      return false;
+    }
+  });
+  const [page, setPage] = useState(() => {
+    try {
+      const savedPage = localStorage.getItem("sentinel_active_page");
+      if (savedPage && META[savedPage]) return savedPage;
+    } catch (e) {}
+    return "dashboard";
+  });
   const [pageHistory, setPageHistory] = useState(["dashboard"]);
-  const [currentUser, setCurrentUser] = useState(DEMO_USERS[0]);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem("sentinel_user");
+      if (savedUser) return JSON.parse(savedUser);
+    } catch (e) {}
+    return DEMO_USERS[0];
+  });
   const [students, setStudents] = useState(() => {
     try {
       const saved = localStorage.getItem("sentinel_students");
@@ -2783,29 +2865,64 @@ export default function App() {
     } catch (e) {}
     return Array.isArray(REGISTRY) ? REGISTRY : [];
   });
-  const [registryCount, setRegistryCount] = useState(0);
+  const [registryCount, setRegistryCount] = useState(() => {
+    try {
+      const saved = localStorage.getItem("sentinel_student_count");
+      return saved ? parseInt(saved, 10) : 0;
+    } catch (e) {
+      return 0;
+    }
+  });
+
+  const fetchLiveStats = async () => {
+    try {
+      let statsRes = await fetch("/ai/stats").catch(() => null);
+      if (!statsRes || !statsRes.ok) statsRes = await fetch("http://localhost:5000/stats").catch(() => null);
+      if (!statsRes || !statsRes.ok) statsRes = await fetch("/ai/health").catch(() => null);
+      if (!statsRes || !statsRes.ok) statsRes = await fetch("http://localhost:5000/health").catch(() => null);
+      if (statsRes && statsRes.ok) {
+        const d = await statsRes.json();
+        const count = d.students_with_face_data ?? d.students_registered ?? d.students_metadata;
+        if (typeof count === "number" && count > 0) {
+          setRegistryCount(count);
+          try { localStorage.setItem("sentinel_student_count", String(count)); } catch (e) {}
+        }
+      }
+    } catch (e) {}
+
+    try {
+      let stuRes = await fetch("/api/students?enrolled=true").catch(() => null);
+      if (!stuRes || !stuRes.ok) stuRes = await fetch("/ai/students?enrolled=true").catch(() => null);
+      if (!stuRes || !stuRes.ok) stuRes = await fetch("http://localhost:5000/students?enrolled=true").catch(() => null);
+      if (stuRes && stuRes.ok) {
+        const data = await stuRes.json();
+        const list = data.students || data;
+        if (Array.isArray(list) && list.length > 0) {
+          const formatted = list.map(s => {
+            const sid = s.student_id || s.id || s.regno;
+            const prefix = sid ? sid.split("/")[0].toUpperCase() : "UNKNOWN";
+            const canonicalFaculty = resolveFacultyCode(s.facultyId || s.faculty || prefix);
+            return {
+              id: sid,
+              regno: sid,
+              name: s.full_name || s.name || `Student (${sid})`,
+              facultyId: canonicalFaculty,
+              faculty: canonicalFaculty,
+              year: s.year || parseYearFromIndex(sid) || 1,
+              initials: (s.full_name || s.name || sid || "").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
+              photoUrl: s.image || s.photoUrl || buildImageUrl(sid),
+            };
+          });
+          setStudents(formatted);
+          try { localStorage.setItem("sentinel_students", JSON.stringify(formatted.slice(0, 1000))); } catch (e) {}
+        }
+      }
+    } catch (e) {}
+  };
 
   useEffect(() => {
-    fetch("http://localhost:5000/stats")
-      .then(r => r.json())
-      .then(d => {
-        if (d && typeof d.students_with_face_data === "number") {
-          setRegistryCount(d.students_with_face_data);
-          try { localStorage.setItem("sentinel_student_count", String(d.students_with_face_data)); } catch (e) {}
-        }
-      })
-      .catch(() => {
-        fetch("http://localhost:5000/health")
-          .then(r => r.json())
-          .then(d => {
-            if (d && typeof d.students_with_face_data === "number") {
-              setRegistryCount(d.students_with_face_data);
-              try { localStorage.setItem("sentinel_student_count", String(d.students_with_face_data)); } catch (e) {}
-            }
-          })
-          .catch(() => {});
-      });
-  }, []);
+    fetchLiveStats();
+  }, [page]);
 
   useEffect(() => {
     if (students && students.length > 0) {
@@ -2833,6 +2950,7 @@ export default function App() {
     if (newPage === page) return;
     setPageHistory(prev => [...prev, page]);
     setPage(newPage);
+    try { localStorage.setItem("sentinel_active_page", newPage); } catch (e) {}
   };
 
   const handleBack = () => {
@@ -2840,8 +2958,10 @@ export default function App() {
       const prevPage = pageHistory[pageHistory.length - 1];
       setPageHistory(prev => prev.slice(0, -1));
       setPage(prevPage);
+      try { localStorage.setItem("sentinel_active_page", prevPage); } catch (e) {}
     } else {
       setPage("dashboard");
+      try { localStorage.setItem("sentinel_active_page", "dashboard"); } catch (e) {}
     }
   };
 
@@ -2849,41 +2969,8 @@ export default function App() {
     setRefreshing(true);
     setToastMsg("Syncing data from backend...");
     try {
-      let res = null;
-      try {
-        res = await fetch("/api/students?enrolled=true");
-      } catch (err) {}
-      if (!res || !res.ok) {
-        res = await fetch("http://localhost:5000/students?enrolled=true");
-      }
-      if (res && res.ok) {
-        const data = await res.json();
-        const list = data.students || data;
-        if (Array.isArray(list)) {
-          const formatted = list.map(s => {
-            const sid = s.student_id || s.id || s.regno;
-            const prefix = sid ? sid.split("/")[0].toUpperCase() : "UNKNOWN";
-            const canonicalFaculty = resolveFacultyCode(s.facultyId || s.faculty || prefix);
-            return {
-              id: sid,
-              regno: sid,
-              name: s.full_name || s.name || `Student (${sid})`,
-              facultyId: canonicalFaculty,
-              faculty: canonicalFaculty,
-              year: s.year || parseYearFromIndex(sid) || 1,
-              initials: (s.full_name || s.name || sid || "").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
-              photoUrl: s.image || s.photoUrl || buildImageUrl(sid),
-            };
-          });
-          setStudents(formatted);
-          try { localStorage.setItem("sentinel_students", JSON.stringify(formatted.slice(0, 1000))); } catch (e) {}
-          setToastMsg(`Refreshed ${formatted.length} students from database`);
-        } else {
-          setToastMsg("System up to date");
-        }
-      } else {
-        setToastMsg("Refresh completed (Backend offline)");
-      }
+      await fetchLiveStats();
+      setToastMsg("Dashboard updated with latest records");
     } catch (e) {
       setToastMsg("Refresh completed");
     } finally {
@@ -2893,10 +2980,14 @@ export default function App() {
   };
 
   const handleLogin = async (user) => {
-    // If user object has a token (from real API), store it
-    if (user.token) {
-      localStorage.setItem("sentinel_token", user.token);
-    }
+    try {
+      localStorage.setItem("sentinel_authenticated", "true");
+      localStorage.setItem("sentinel_user", JSON.stringify(user));
+      if (user.token) {
+        localStorage.setItem("sentinel_token", user.token);
+      }
+      localStorage.setItem("sentinel_active_page", "dashboard");
+    } catch (e) {}
     setCurrentUser(user);
     setIsAuthenticated(true);
     setPage("dashboard");
@@ -2904,9 +2995,14 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("sentinel_token");
+    try {
+      localStorage.removeItem("sentinel_authenticated");
+      localStorage.removeItem("sentinel_user");
+      localStorage.removeItem("sentinel_token");
+      localStorage.removeItem("sentinel_active_page");
+    } catch (e) {}
     setIsAuthenticated(false);
-    setPage("identify");
+    setPage("dashboard");
     setPageHistory([]);
   };
 

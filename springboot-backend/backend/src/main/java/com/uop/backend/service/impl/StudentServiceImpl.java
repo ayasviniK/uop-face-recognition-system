@@ -20,15 +20,18 @@ import com.uop.backend.service.FacultyResolver;
 import com.uop.backend.service.StudentService;
 
 import jakarta.persistence.criteria.Predicate;
-import lombok.RequiredArgsConstructor;
 
 @Service
-@RequiredArgsConstructor
 @Transactional
 public class StudentServiceImpl implements StudentService {
 
     private final StudentRepository studentRepository;
     private final FacultyResolver facultyResolver;
+
+    public StudentServiceImpl(StudentRepository studentRepository, FacultyResolver facultyResolver) {
+        this.studentRepository = studentRepository;
+        this.facultyResolver = facultyResolver;
+    }
 
     @Override
     public StudentResponse createStudent(StudentCreateRequest request) {

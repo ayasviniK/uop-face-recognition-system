@@ -27,7 +27,6 @@ import com.uop.backend.service.InternalStudentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 
 /**
  * Dedicated internal API controller for Flask AI Service synchronization and identification matching.
@@ -35,11 +34,14 @@ import lombok.RequiredArgsConstructor;
  */
 @RestController
 @RequestMapping("/internal")
-@RequiredArgsConstructor
 @Tag(name = "Internal AI Integration", description = "Endpoints for Flask AI Service integration.")
 public class InternalStudentController {
 
     private final InternalStudentService internalStudentService;
+
+    public InternalStudentController(InternalStudentService internalStudentService) {
+        this.internalStudentService = internalStudentService;
+    }
 
     @GetMapping("/students/embeddings")
     @Operation(summary = "Get student embeddings", description = "Retrieves stored face embeddings filtered optionally by tier and facultyPrefix.")

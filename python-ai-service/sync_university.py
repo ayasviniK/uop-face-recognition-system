@@ -27,6 +27,7 @@ import os
 import sys
 import csv
 import time
+import gc
 
 try:
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -35,7 +36,10 @@ except Exception:
     pass
 import base64
 import argparse
+import threading
+import concurrent.futures
 import requests
+from requests.adapters import HTTPAdapter
 import cv2
 import numpy as np
 from datetime import datetime, timezone
@@ -52,8 +56,13 @@ try:
 except ImportError:
     print("  WARNING: python-dotenv not installed. Run: pip install python-dotenv")
 
-from utils.embedder import get_embedding_from_image
-from utils.augmentor import generate_augmented_embeddings
+from utils.embedder import get_embedding_from_image, get_analyzer
+from utils.augmentor import (
+    generate_augmented_embeddings,
+    generate_crop_augmented_embeddings,
+    generate_profile_crop_augmented_embeddings,
+)
+from utils.aligner import align_face
 from utils.preprocessor import preprocess
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -68,6 +77,21 @@ API_KEY              = os.environ.get("UNI_API_KEY", "")
 SPRING_BOOT_URL      = os.environ.get("SPRING_BOOT_URL", "http://localhost:8080")
 INTERNAL_API_KEY     = os.environ.get("INTERNAL_API_KEY", "")
 USE_MOCK_DB          = os.environ.get("USE_MOCK_DB", "false").lower() in ("1", "true", "yes")
+ENABLE_PROFILE_PHOTOS = os.environ.get("ENABLE_PROFILE_PHOTOS", "false").lower() in ("1", "true", "yes")
+SYNC_MAX_WORKERS      = int(os.environ.get("SYNC_MAX_WORKERS", "5"))
+PHOTO_FETCH_TIMEOUT   = int(os.environ.get("PHOTO_FETCH_TIMEOUT", "7"))
+
+_http_session = None
+
+def get_session() -> requests.Session:
+    """Return shared requests Session with connection pooling for maximum throughput."""
+    global _http_session
+    if _http_session is None:
+        _http_session = requests.Session()
+        adapter = HTTPAdapter(pool_connections=20, pool_maxsize=30, max_retries=2)
+        _http_session.mount("http://", adapter)
+        _http_session.mount("https://", adapter)
+    return _http_session
 
 CSV_PATH          = os.path.join(os.path.dirname(__file__), "sample_data", "students.csv")
 CSV_REG_NO_COLUMN = "Reg_No"
@@ -221,7 +245,7 @@ def fetch_photo(reg_no: str, suffix: str = "") -> np.ndarray | None:
 
     try:
         url = f"{PHOTO_DB_URL}{reg_no}{suffix}"
-        r = requests.get(url, headers=auth_headers(), timeout=30)
+        r = get_session().get(url, headers=auth_headers(), timeout=PHOTO_FETCH_TIMEOUT)
 
         if not r.ok:
             return None
@@ -259,10 +283,10 @@ def fetch_photo(reg_no: str, suffix: str = "") -> np.ndarray | None:
 def get_existing_ids() -> set:
     ids = set()
     try:
-        r = requests.get(
+        r = get_session().get(
             f"{SPRING_BOOT_URL}/internal/students/ids",
             headers={"X-Internal-API-Key": INTERNAL_API_KEY},
-            timeout=5,
+            timeout=15,
         )
         if r.ok:
             res_data = r.json()
@@ -335,7 +359,7 @@ def save_to_db(reg_no: str, faculty: str, embeddings: list[dict], year: int = No
             payload[field] = emb["embedding"]
 
     try:
-        r = requests.post(
+        r = get_session().post(
             f"{SPRING_BOOT_URL}/internal/students/embeddings",
             json=payload,
             headers={
@@ -356,7 +380,7 @@ def save_to_db(reg_no: str, faculty: str, embeddings: list[dict], year: int = No
 
 def log_sync(added: int, skipped: int, failed: int, replaced: int, duration: float):
     try:
-        requests.post(
+        get_session().post(
             f"{SPRING_BOOT_URL}/internal/sync/log",
             json={
                 "studentsAdded":      added,
@@ -443,57 +467,65 @@ def generate_all_embeddings(reg_no: str) -> tuple[list[dict], str | None]:
     if front_processed is None:
         front_processed = front_img
 
-    # Generate 6 augmented embeddings from front photo
-    front_embeddings = generate_augmented_embeddings(front_processed, get_embedding_from_image)
+    # Fast single-pass face detection + alignment + direct ArcFace augmentation
+    analyzer = get_analyzer()
+    faces = analyzer.get(front_processed)
+    if not faces:
+        print(f"    No face detected in front photo for {reg_no}")
+        return [], None
+
+    best_face = max(faces, key=lambda f: f.det_score)
+    aligned = align_face(front_processed, best_face.kps)
+    rec_model = analyzer.models.get("recognition")
+
+    if aligned is not None and rec_model is not None:
+        front_embeddings = generate_crop_augmented_embeddings(aligned, rec_model)
+    else:
+        front_embeddings = generate_augmented_embeddings(front_processed, get_embedding_from_image)
+
     if not front_embeddings:
-        print(f"    No face detected in front photo")
+        print(f"    No face detected in front photo for {reg_no}")
         return [], None
 
     all_embeddings.extend(front_embeddings)
 
-    # Left profile — optional, only if available
-    left_img = fetch_photo(reg_no, suffix="_L")
-    if left_img is not None:
-        left_processed, _ = preprocess(left_img)
-        if left_processed is None:
-            left_processed = left_img
-        left_faces = get_embedding_from_image(left_processed)
-        if left_faces:
-            best = max(left_faces, key=lambda f: f["confidence"])
-            all_embeddings.append({
-                "augmentation": "left_1",
-                "embedding": best["embedding"].tolist()
-            })
-            flipped_left = cv2.flip(left_processed, 1)
-            flipped_faces = get_embedding_from_image(flipped_left)
-            if flipped_faces:
-                best_f = max(flipped_faces, key=lambda f: f["confidence"])
-                all_embeddings.append({
-                    "augmentation": "left_2",
-                    "embedding": best_f["embedding"].tolist()
-                })
+    # Profile photos — only if enabled in config (bypasses failed network calls when server only has front photos)
+    if ENABLE_PROFILE_PHOTOS:
+        # Left profile — optional
+        left_img = fetch_photo(reg_no, suffix="_L")
+        if left_img is not None:
+            left_processed, _ = preprocess(left_img)
+            if left_processed is None:
+                left_processed = left_img
+            left_faces = analyzer.get(left_processed)
+            if left_faces:
+                best_l = max(left_faces, key=lambda f: f.det_score)
+                aligned_l = align_face(left_processed, best_l.kps)
+                if aligned_l is not None and rec_model is not None:
+                    all_embeddings.extend(generate_profile_crop_augmented_embeddings(aligned_l, rec_model, "left"))
+                else:
+                    all_embeddings.append({
+                        "augmentation": "left_1",
+                        "embedding": best_l.normed_embedding.tolist()
+                    })
 
-    # Right profile — optional, only if available
-    right_img = fetch_photo(reg_no, suffix="_R")
-    if right_img is not None:
-        right_processed, _ = preprocess(right_img)
-        if right_processed is None:
-            right_processed = right_img
-        right_faces = get_embedding_from_image(right_processed)
-        if right_faces:
-            best = max(right_faces, key=lambda f: f["confidence"])
-            all_embeddings.append({
-                "augmentation": "right_1",
-                "embedding": best["embedding"].tolist()
-            })
-            flipped_right = cv2.flip(right_processed, 1)
-            flipped_faces = get_embedding_from_image(flipped_right)
-            if flipped_faces:
-                best_f = max(flipped_faces, key=lambda f: f["confidence"])
-                all_embeddings.append({
-                    "augmentation": "right_2",
-                    "embedding": best_f["embedding"].tolist()
-                })
+        # Right profile — optional
+        right_img = fetch_photo(reg_no, suffix="_R")
+        if right_img is not None:
+            right_processed, _ = preprocess(right_img)
+            if right_processed is None:
+                right_processed = right_img
+            right_faces = analyzer.get(right_processed)
+            if right_faces:
+                best_r = max(right_faces, key=lambda f: f.det_score)
+                aligned_r = align_face(right_processed, best_r.kps)
+                if aligned_r is not None and rec_model is not None:
+                    all_embeddings.extend(generate_profile_crop_augmented_embeddings(aligned_r, rec_model, "right"))
+                else:
+                    all_embeddings.append({
+                        "augmentation": "right_1",
+                        "embedding": best_r.normed_embedding.tolist()
+                    })
 
     return all_embeddings, front_b64
 
@@ -588,35 +620,64 @@ def run_sync(
 
     added = skipped = failed = replaced = no_face = 0
     start = time.time()
+    lock = threading.Lock()
+    processed_count = 0
 
+    max_workers = SYNC_MAX_WORKERS
+
+    # Fast skip for duplicates if replace=False
+    to_process = []
     for i, reg_no in enumerate(reg_numbers):
-        elapsed = time.time() - start
-        eta = ""
-        if i > 0:
-            avg = elapsed / i
-            eta = f"  ETA: {(avg * (total - i)) / 60:.1f}m"
-
-        print(f"  [{i+1:04d}/{total}] {reg_no}{eta}", end=" → ")
-        sys.stdout.flush()
-
-        result = sync_one(reg_no, existing_ids, replace=replace)
-        existing_ids.add(reg_no)
-
-        if result == "added":
-            added += 1
-            print("✓ added")
-        elif result == "replaced":
-            replaced += 1
-            print("↻ replaced")
-        elif result == "skipped":
+        if reg_no in existing_ids and not replace:
             skipped += 1
-            print("— skipped (already in DB)")
-        elif result == "no_face":
-            no_face += 1
-            print("⚠ no face detected (default/placeholder image)")
+            print(f"  [{i+1:04d}/{total}] {reg_no} → — skipped (already in DB)")
         else:
-            failed += 1
-            print("✗ failed")
+            to_process.append((i, reg_no))
+
+    if to_process:
+        def process_item(item):
+            nonlocal added, replaced, failed, no_face, skipped, processed_count
+            idx, reg_no = item
+            res = sync_one(reg_no, existing_ids, replace=replace)
+            with lock:
+                existing_ids.add(reg_no)
+                processed_count += 1
+                elapsed = time.time() - start
+                avg = elapsed / max(1, processed_count)
+                eta = f"  ETA: {(avg * (len(to_process) - processed_count)) / 60:.1f}m"
+
+                if res == "added":
+                    added += 1
+                    status_text = "✓ added"
+                elif res == "replaced":
+                    replaced += 1
+                    status_text = "↻ replaced"
+                elif res == "skipped":
+                    skipped += 1
+                    status_text = "— skipped (already in DB)"
+                elif res == "no_face":
+                    no_face += 1
+                    status_text = "⚠ no face detected (default/placeholder image)"
+                else:
+                    failed += 1
+                    status_text = "✗ failed"
+
+                print(f"  [{idx+1:04d}/{total}] {reg_no}{eta} → {status_text}")
+                sys.stdout.flush()
+
+                if processed_count % 15 == 0:
+                    gc.collect()
+
+            return res
+
+        workers = min(max_workers, len(to_process))
+        if workers > 1:
+            print(f"  🚀 Processing {len(to_process)} records with {workers} parallel worker threads...")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+                list(executor.map(process_item, to_process))
+        else:
+            for item in to_process:
+                process_item(item)
 
     duration = time.time() - start
     log_sync(added, skipped, failed, replaced, duration)

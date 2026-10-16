@@ -26,7 +26,7 @@ def get_analyzer() -> FaceAnalysis:
             name="buffalo_l",
             providers=["CPUExecutionProvider"]
         )
-        _face_analyzer.prepare(ctx_id=-1, det_size=(640, 640))
+        _face_analyzer.prepare(ctx_id=-1, det_size=(320, 320))
     return _face_analyzer
 
 

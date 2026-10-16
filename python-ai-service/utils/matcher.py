@@ -26,9 +26,12 @@ def cosine_similarity(embedding_a, embedding_b) -> float:
 
 def find_top_matches(
     query_embedding,
-    candidate_embeddings: list,
+    candidate_embeddings,
     top_k: int = 5,
 ) -> list:
+    if hasattr(candidate_embeddings, "search"):
+        return candidate_embeddings.search(query_embedding, top_k=top_k)
+
     # Score every candidate embedding
     scored = []
     for candidate in candidate_embeddings:

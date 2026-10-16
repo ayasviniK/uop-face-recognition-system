@@ -12,15 +12,17 @@ import com.uop.backend.storage.StorageService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/uploads")
-@RequiredArgsConstructor
 @Tag(name = "Image Uploads", description = "Endpoints for probe image uploads.")
 public class UploadController {
 
     private final StorageService storageService;
+
+    public UploadController(StorageService storageService) {
+        this.storageService = storageService;
+    }
 
     @PostMapping("/probe-image")
     @Operation(summary = "Upload probe image", description = "Stores temporary probe photo for face recognition processing.")

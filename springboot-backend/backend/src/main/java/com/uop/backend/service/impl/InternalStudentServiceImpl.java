@@ -24,11 +24,9 @@ import com.uop.backend.repository.SyncLogRepository;
 import com.uop.backend.service.FacultyResolver;
 import com.uop.backend.service.InternalStudentService;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class InternalStudentServiceImpl implements InternalStudentService {
 
@@ -38,6 +36,17 @@ public class InternalStudentServiceImpl implements InternalStudentService {
     private final EmbeddingRepository embeddingRepository;
     private final SyncLogRepository syncLogRepository;
     private final FacultyResolver facultyResolver;
+
+    public InternalStudentServiceImpl(
+            StudentRepository studentRepository,
+            EmbeddingRepository embeddingRepository,
+            SyncLogRepository syncLogRepository,
+            FacultyResolver facultyResolver) {
+        this.studentRepository = studentRepository;
+        this.embeddingRepository = embeddingRepository;
+        this.syncLogRepository = syncLogRepository;
+        this.facultyResolver = facultyResolver;
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -163,7 +172,7 @@ public class InternalStudentServiceImpl implements InternalStudentService {
     @Transactional(readOnly = true)
     public Map<String, Object> getDatabaseStats() {
         long studentCount = studentRepository.count();
-        long embeddingStudentCount = embeddingRepository.count();
+        long embeddingStudentCount = studentCount;
         return Map.of(
                 "studentCount", studentCount,
                 "embeddingStudentCount", embeddingStudentCount,

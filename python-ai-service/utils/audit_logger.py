@@ -14,9 +14,11 @@ JSONL format is better than a single JSON array for logs because:
 
 import json
 import os
+import threading
 from datetime import datetime, timezone
 
 LOG_PATH = os.path.join(os.path.dirname(__file__), "..", "logs", "audit.jsonl")
+_log_lock = threading.Lock()
 
 
 def log_identification(
@@ -55,8 +57,9 @@ def log_identification(
         "results_summary": summary,
     }
 
-    with open(LOG_PATH, "a") as f:
-        f.write(json.dumps(entry) + "\n")
+    with _log_lock:
+        with open(LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
 
 
 def log_registration(staff_id: str, success: bool, reason: str = "") -> None:
@@ -71,8 +74,9 @@ def log_registration(staff_id: str, success: bool, reason: str = "") -> None:
         "reason": reason,
     }
 
-    with open(LOG_PATH, "a") as f:
-        f.write(json.dumps(entry) + "\n")
+    with _log_lock:
+        with open(LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
 
 
 def get_recent_logs(limit: int = 50) -> list[dict]:

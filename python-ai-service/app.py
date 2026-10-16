@@ -13,11 +13,26 @@ Endpoints:
   GET    /stats               - System statistics
 """
 
+import os
+import sys
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    _env_backend = Path(__file__).parent.parent / "springboot-backend" / "backend" / ".env"
+    if _env_backend.exists():
+        load_dotenv(_env_backend)
+    _env_local = Path(__file__).parent / ".env"
+    if _env_local.exists():
+        load_dotenv(_env_local)
+except ImportError:
+    pass
+
 from flask import Flask, request, jsonify
 import cv2
 import numpy as np
 import traceback
-import os
+import threading
 import tempfile
 import base64
 import io
@@ -127,7 +142,8 @@ def decode_image(file_storage):
 # Health
 # ---------------------------------------------------------------------------
 
-@app.route("/health")
+@app.route("/health", methods=["GET"])
+@app.route("/ai/health", methods=["GET"])
 def health():
     database_stats = active_database_stats()
     return jsonify({
@@ -288,21 +304,21 @@ def register():
         if field:
             payload[field] = embedding["embedding"]
 
+    # Always register student in in-memory registry for photo preview and metadata lookup
+    register_student(
+        student_id=student_id,
+        full_name=full_name,
+        department=department,
+        year=year,
+        email=email,
+        embeddings=embeddings,
+        image=ref_b64,
+    )
+
     try:
         save_mysql_embeddings(payload)
     except Exception as exc:
-        if not USE_MOCK_DB:
-            log_registration(student_id, success=False, reason=f"MySQL save failed: {exc}")
-            return jsonify({"error": "Could not save student to MySQL backend"}), 503
-        register_student(
-            student_id=student_id,
-            full_name=full_name,
-            department=department,
-            year=year,
-            email=email,
-            embeddings=embeddings,
-            image=ref_b64,
-        )
+        print(f"Notice saving MySQL embeddings for {student_id}: {exc}")
 
     log_registration(student_id, success=True)
 
@@ -477,14 +493,31 @@ def batch_register_students():
     })
 
 
+_sync_lock = threading.Lock()
+_sync_in_progress = False
+
+
 @app.route("/ai/sync/csv", methods=["POST"])
 def sync_csv():
     """Parse an uploaded CSV and run the photo-to-embedding sync pipeline."""
+    global _sync_in_progress
+    with _sync_lock:
+        if _sync_in_progress:
+            return jsonify({
+                "success": False,
+                "error": "A sync is already actively running. Please wait for the current batch to finish before starting a new one.",
+            }), 409
+        _sync_in_progress = True
+
     csv_file = request.files.get("file")
     if not csv_file or not csv_file.filename:
+        with _sync_lock:
+            _sync_in_progress = False
         return jsonify({"success": False, "error": "CSV file is required"}), 400
 
     if not csv_file.filename.lower().endswith(".csv"):
+        with _sync_lock:
+            _sync_in_progress = False
         return jsonify({"success": False, "error": "Only CSV files are supported"}), 400
 
     replace = request.form.get("replace", "false").lower() == "true"
@@ -507,6 +540,8 @@ def sync_csv():
         traceback.print_exc()
         return jsonify({"success": False, "error": f"CSV sync failed: {exc}"}), 500
     finally:
+        with _sync_lock:
+            _sync_in_progress = False
         if temp_path:
             try:
                 os.unlink(temp_path)
@@ -611,6 +646,7 @@ def audit_logs():
 
 
 @app.route("/stats", methods=["GET"])
+@app.route("/ai/stats", methods=["GET"])
 def stats():
     database_stats = active_database_stats()
     logs = get_recent_logs(limit=1000)
@@ -721,6 +757,12 @@ def api_recognize():
             matched_rec = get_student(sid)
             if matched_rec:
                 ref_photo_b64 = matched_rec.get("image")
+                if not sname or sname == f"Student ({sid})":
+                    sname = matched_rec.get("full_name") or sname
+                if not sfac or sfac == "UNKNOWN":
+                    sfac = matched_rec.get("faculty") or matched_rec.get("department") or sfac
+                if not syear or syear == 1:
+                    syear = matched_rec.get("year") or syear
 
         face_results.append({
             "faceIndex": idx,

@@ -69,17 +69,22 @@ const handleLoginSubmit = async (e) => {
       setErrorMsg(data.message || "Invalid credentials.");
       return;
     }
-    // Store JWT token for future requests
+    // Store JWT token and authenticated user for future requests & reloads
+    const loggedInUser = { ...targetUser, ...(data?.data?.token ? { token: data.data.token } : {}) };
     if (data?.data?.token) {
       localStorage.setItem("sentinel_token", data.data.token);
     }
-    onLogin(targetUser);
+    localStorage.setItem("sentinel_authenticated", "true");
+    localStorage.setItem("sentinel_user", JSON.stringify(loggedInUser));
+    onLogin(loggedInUser);
   } catch {
     // Spring Boot not reachable — fall back to demo mode
     if (effectivePassword !== targetUser.password) {
       setErrorMsg(`Invalid password. Demo hint: "${targetUser.password}"`);
       return;
     }
+    localStorage.setItem("sentinel_authenticated", "true");
+    localStorage.setItem("sentinel_user", JSON.stringify(targetUser));
     onLogin(targetUser);
   }
 };

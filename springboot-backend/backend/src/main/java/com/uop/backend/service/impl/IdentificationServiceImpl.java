@@ -19,11 +19,9 @@ import com.uop.backend.service.FacultyResolver;
 import com.uop.backend.service.IdentificationService;
 import com.uop.backend.util.ConfidenceScoreUtil;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class IdentificationServiceImpl implements IdentificationService {
 
@@ -31,6 +29,17 @@ public class IdentificationServiceImpl implements IdentificationService {
     private final StudentRepository studentRepository;
     private final FacultyResolver facultyResolver;
     private final UniversityIndexClient universityIndexClient;
+
+    public IdentificationServiceImpl(
+            AiClient aiClient,
+            StudentRepository studentRepository,
+            FacultyResolver facultyResolver,
+            UniversityIndexClient universityIndexClient) {
+        this.aiClient = aiClient;
+        this.studentRepository = studentRepository;
+        this.facultyResolver = facultyResolver;
+        this.universityIndexClient = universityIndexClient;
+    }
 
     @Override
     @Transactional(readOnly = true)

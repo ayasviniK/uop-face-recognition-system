@@ -27,15 +27,16 @@ import com.uop.backend.service.StudentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-
 @RestController
 @RequestMapping("/api/students")
-@RequiredArgsConstructor
 @Tag(name = "Student Management", description = "Endpoints for viewing and querying local student metadata.")
 public class StudentController {
 
     private final StudentService studentService;
+
+    public StudentController(StudentService studentService) {
+        this.studentService = studentService;
+    }
 
     @PostMapping
     @Operation(summary = "Register student metadata", description = "Registers student metadata with unique student ID, faculty, and tier.")
